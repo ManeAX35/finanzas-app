@@ -13,6 +13,7 @@ import {
 } from '../../database/queries/liquidez';
 import { formatMXN, hoy } from '../../database';
 import { CuentaLiquidez, MovimientoLiquidez } from '../../types';
+import Header from '../../components/Header';
 
 const TIPOS = ['debito', 'digital', 'efectivo', 'monedero'] as const;
 const TIPO_LABEL: Record<string, string> = {
@@ -135,12 +136,7 @@ export default function CuentasScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>Cuentas</Text>
-          <Text style={styles.headerSub}>Total disponible: {formatMXN(totalDisponible)}</Text>
-        </View>
-      </View>
+      <Header title="Cuentas" subtitle={`Total disponible: ${formatMXN(totalDisponible)}`} />
 
       <ScrollView
         contentContainerStyle={styles.scroll}
@@ -241,7 +237,6 @@ export default function CuentasScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Modal cuenta */}
       <Modal visible={modalCuenta} animationType="slide" presentationStyle="pageSheet">
         <View style={styles.modal}>
           <View style={styles.modalHeader}>
@@ -285,7 +280,6 @@ export default function CuentasScreen() {
         </View>
       </Modal>
 
-      {/* Modal movimiento */}
       <Modal visible={modalMovimiento} animationType="slide" presentationStyle="pageSheet">
         <View style={styles.modal}>
           <View style={styles.modalHeader}>
@@ -342,9 +336,6 @@ export default function CuentasScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
-  header: { padding: 20, paddingTop: 60, backgroundColor: '#FFFFFF', borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB' },
-  headerTitle: { fontSize: 24, fontWeight: '600', color: '#111827' },
-  headerSub: { fontSize: 13, color: '#6B7280', marginTop: 2 },
   scroll: { padding: 16 },
   emptyState: { alignItems: 'center', padding: 40, gap: 8 },
   emptyTitle: { fontSize: 16, fontWeight: '500', color: '#6B7280' },

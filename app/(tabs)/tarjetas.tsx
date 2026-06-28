@@ -12,6 +12,7 @@ import {
 } from '../../database/queries/tarjetas';
 import { formatMXN } from '../../database';
 import { TarjetaConVersion } from '../../types';
+import Header from '../../components/Header';
 
 const COLORES = ['blue', 'teal', 'purple', 'coral', 'amber', 'gray'];
 const COLOR_MAP: Record<string, string> = {
@@ -108,9 +109,7 @@ export default function TarjetasScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Tarjetas</Text>
-      </View>
+      <Header title="Tarjetas" />
 
       <ScrollView
         contentContainerStyle={styles.scroll}
@@ -194,13 +193,11 @@ export default function TarjetasScreen() {
               <Ionicons name="close" size={24} color="#6B7280" />
             </TouchableOpacity>
           </View>
-
           <ScrollView style={styles.modalBody}>
             <View style={styles.switchRow}>
               <Text style={styles.switchLabel}>Tarjeta departamental</Text>
               <Switch value={esDepartamental} onValueChange={setEsDepartamental} trackColor={{ true: '#6366F1' }} />
             </View>
-
             {[
               { label: 'Banco / Tienda', key: 'banco', placeholder: 'BBVA, Liverpool...' },
               { label: 'Nombre / apodo', key: 'nombre', placeholder: 'Oro, Azul...' },
@@ -223,7 +220,6 @@ export default function TarjetasScreen() {
                 />
               </View>
             ))}
-
             <Text style={styles.formLabel}>Color</Text>
             <View style={styles.coloresRow}>
               {COLORES.map(c => (
@@ -235,7 +231,6 @@ export default function TarjetasScreen() {
                 />
               ))}
             </View>
-
             <TouchableOpacity style={styles.saveBtn} onPress={guardar}>
               <Text style={styles.saveBtnText}>Guardar tarjeta</Text>
             </TouchableOpacity>
@@ -249,8 +244,6 @@ export default function TarjetasScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 60, backgroundColor: '#FFFFFF', borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB' },
-  headerTitle: { fontSize: 24, fontWeight: '600', color: '#111827' },
   scroll: { padding: 16 },
   emptyState: { alignItems: 'center', padding: 40, gap: 8 },
   emptyTitle: { fontSize: 16, fontWeight: '500', color: '#6B7280' },

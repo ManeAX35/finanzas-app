@@ -6,10 +6,11 @@ import {
 import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { obtenerGastosPorMes } from '../../database/queries/gastos';
-import { obtenerMovimientosPorMes, obtenerSaldosTodos } from '../../database/queries/liquidez';
+import { obtenerMovimientosPorMes } from '../../database/queries/liquidez';
 import { obtenerTarjetas, obtenerPeriodos } from '../../database/queries/tarjetas';
 import { obtenerRecurrentesPorMes } from '../../database/queries/recurrentes';
 import { formatMXN } from '../../database';
+import Header from '../../components/Header';
 
 const { width } = Dimensions.get('window');
 const BAR_WIDTH = (width - 80) / 6;
@@ -30,12 +31,13 @@ const CATEGORIA_COLORES: Record<string, string> = {
 };
 
 export default function DashboardScreen() {
+  const hoyDate = new Date();
   const [refreshing, setRefreshing] = useState(false);
-  const [mesActual] = useState(new Date().getMonth());
-  const [anioActual] = useState(new Date().getFullYear());
+  const [mesSeleccionado, setMesSeleccionado] = useState(hoyDate.getMonth());
+  const [anioSeleccionado, setAnioSeleccionado] = useState(hoyDate.getFullYear());
   const [gastosPorCategoria, setGastosPorCategoria] = useState<{ categoria: string; total: number }[]>([]);
-  const [gastosPorMes, setGastosPorMes] = useState<{ mes: number; total: number }[]>([]);
-  const [ingresosPorMes, setIngresosPorMes] = useState<{ mes: number; total: number }[]>([]);
+  const [gastosPorMes, setGastosPorMes] = useState<{ mes: number; anio: number; total: number }[]>([]);
+  const [ingresosPorMes, setIngresosPorMes] = useState<{ mes: number; anio: number; total: number }[]>([]);
   const [deudaPorMes, setDeudaPorMes] = useState<{ mes: number; total: number }[]>([]);
   const [totalGastosMes, setTotalGastosMes] = useState(0);
   const [totalIngresosMes, setTotalIngresosMes] = useState(0);
@@ -43,15 +45,14 @@ export default function DashboardScreen() {
 
   const cargarDatos = async () => {
     try {
-      const gastosMap: Record<number, number> = {};
-      const ingresosMap: Record<number, number> = {};
-      const deudaMap: Record<number, number> = {};
+      const gastosArr: { mes: number; anio: number; total: number }[] = [];
+      const ingresosArr: { mes: number; anio: number; total: number }[] = [];
       const categoriasMap: Record<string, number> = {};
 
-      // Últimos 6 meses
+      // Últimos 6 meses desde el mes seleccionado
       for (let i = 5; i >= 0; i--) {
-        let mes = mesActual - i;
-        let anio = anioActual;
+        let mes = mesSeleccionado - i;
+        let anio = anioSeleccionado;
         if (mes < 0) { mes += 12; anio -= 1; }
         const mesReal = mes + 1;
 
@@ -63,14 +64,14 @@ export default function DashboardScreen() {
 
         const totalGastos = gastos.reduce((s, g) => s + g.monto, 0);
         const totalRec = recurrentes.reduce((s: number, r: any) => s + (r.monto_cobrado ?? r.monto_esperado ?? 0), 0);
-        gastosMap[mes] = totalGastos + totalRec;
+        gastosArr.push({ mes, anio, total: totalGastos + totalRec });
 
         const totalIngresos = movimientos
           .filter(m => m.tipo === 'ingreso')
           .reduce((s, m) => s + m.monto, 0);
-        ingresosMap[mes] = totalIngresos;
+        ingresosArr.push({ mes, anio, total: totalIngresos });
 
-        // Categorías solo del mes actual
+        // Datos del mes seleccionado
         if (i === 0) {
           for (const g of gastos) {
             const cat = g.categoria ?? 'Otro';
@@ -83,25 +84,25 @@ export default function DashboardScreen() {
       }
 
       // Deuda por tarjeta por mes
+      const deudaMap: Record<string, number> = {};
       const tarjetas = await obtenerTarjetas();
       for (const t of tarjetas) {
         const periodos = await obtenerPeriodos(t.tarjeta_id);
         for (const p of periodos) {
           const fecha = new Date(p.fecha_corte);
-          const mes = fecha.getMonth();
-          deudaMap[mes] = (deudaMap[mes] ?? 0) + p.saldo_calculado;
+          const key = `${fecha.getFullYear()}-${fecha.getMonth()}`;
+          deudaMap[key] = (deudaMap[key] ?? 0) + p.saldo_calculado;
         }
       }
 
-      const meses6 = Array.from({ length: 6 }, (_, i) => {
-        let mes = mesActual - (5 - i);
-        if (mes < 0) mes += 12;
-        return mes;
-      });
+      setGastosPorMes(gastosArr);
+      setIngresosPorMes(ingresosArr);
 
-      setGastosPorMes(meses6.map(m => ({ mes: m, total: gastosMap[m] ?? 0 })));
-      setIngresosPorMes(meses6.map(m => ({ mes: m, total: ingresosMap[m] ?? 0 })));
-      setDeudaPorMes(meses6.map(m => ({ mes: m, total: deudaMap[m] ?? 0 })));
+      const deudaArr = gastosArr.map(g => ({
+        mes: g.mes,
+        total: deudaMap[`${g.anio}-${g.mes}`] ?? 0,
+      }));
+      setDeudaPorMes(deudaArr);
 
       const cats = Object.entries(categoriasMap)
         .map(([categoria, total]) => ({ categoria, total }))
@@ -115,18 +116,48 @@ export default function DashboardScreen() {
     }
   };
 
-  useFocusEffect(useCallback(() => { cargarDatos(); }, []));
+  useFocusEffect(useCallback(() => { cargarDatos(); }, [mesSeleccionado, anioSeleccionado]));
 
-  const maxGasto = Math.max(...gastosPorMes.map(g => g.total), 1);
-  const maxIngreso = Math.max(...ingresosPorMes.map(g => g.total), 1);
-  const maxBar = Math.max(maxGasto, maxIngreso, 1);
+  const mesAnterior = () => {
+    if (mesSeleccionado === 0) {
+      setMesSeleccionado(11);
+      setAnioSeleccionado(a => a - 1);
+    } else {
+      setMesSeleccionado(m => m - 1);
+    }
+  };
+
+  const mesSiguiente = () => {
+    const hoy = new Date();
+    if (anioSeleccionado === hoy.getFullYear() && mesSeleccionado === hoy.getMonth()) return;
+    if (mesSeleccionado === 11) {
+      setMesSeleccionado(0);
+      setAnioSeleccionado(a => a + 1);
+    } else {
+      setMesSeleccionado(m => m + 1);
+    }
+  };
+
+  const esMesActual = anioSeleccionado === hoyDate.getFullYear() && mesSeleccionado === hoyDate.getMonth();
+  const maxBar = Math.max(...gastosPorMes.map(g => g.total), ...ingresosPorMes.map(g => g.total), 1);
   const totalCategorias = gastosPorCategoria.reduce((s, c) => s + c.total, 0);
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Dashboard</Text>
-        <Text style={styles.headerSub}>{MESES[mesActual]} {anioActual}</Text>
+      <Header title="Dashboard" />
+
+      {/* Selector de mes */}
+      <View style={styles.mesSelector}>
+        <TouchableOpacity onPress={mesAnterior} style={styles.mesBtn}>
+          <Ionicons name="chevron-back" size={20} color="#4F46E5" />
+        </TouchableOpacity>
+        <View style={styles.mesCentro}>
+          <Text style={styles.mesTexto}>{MESES[mesSeleccionado]} {anioSeleccionado}</Text>
+          {esMesActual && <View style={styles.mesBadge}><Text style={styles.mesBadgeText}>Actual</Text></View>}
+        </View>
+        <TouchableOpacity onPress={mesSiguiente} style={[styles.mesBtn, esMesActual && styles.mesBtnDisabled]}>
+          <Ionicons name="chevron-forward" size={20} color={esMesActual ? '#D1D5DB' : '#4F46E5'} />
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -149,7 +180,7 @@ export default function DashboardScreen() {
           </View>
         </View>
 
-        {/* Gráfica de barras - Gastos vs Ingresos */}
+        {/* Gráfica barras gastos vs ingresos */}
         <View style={styles.chartCard}>
           <Text style={styles.chartTitle}>Gastos vs Ingresos — últimos 6 meses</Text>
           <View style={styles.legend}>
@@ -167,32 +198,34 @@ export default function DashboardScreen() {
               const ingreso = ingresosPorMes[i]?.total ?? 0;
               const alturaGasto = (g.total / maxBar) * 150;
               const alturaIngreso = (ingreso / maxBar) * 150;
+              const esActual = g.mes === mesSeleccionado && g.anio === anioSeleccionado;
               return (
-                <View key={g.mes} style={styles.barGroup}>
+                <View key={`${g.anio}-${g.mes}`} style={styles.barGroup}>
                   <View style={styles.barsRow}>
-                    <View style={[styles.bar, { height: Math.max(alturaGasto, 4), backgroundColor: '#EF4444' }]} />
-                    <View style={[styles.bar, { height: Math.max(alturaIngreso, 4), backgroundColor: '#10B981' }]} />
+                    <View style={[styles.bar, { height: Math.max(alturaGasto, 4), backgroundColor: esActual ? '#DC2626' : '#EF4444', opacity: esActual ? 1 : 0.5 }]} />
+                    <View style={[styles.bar, { height: Math.max(alturaIngreso, 4), backgroundColor: esActual ? '#059669' : '#10B981', opacity: esActual ? 1 : 0.5 }]} />
                   </View>
-                  <Text style={styles.barLabel}>{MESES[g.mes]}</Text>
+                  <Text style={[styles.barLabel, esActual && { color: '#4F46E5', fontWeight: '600' }]}>{MESES[g.mes]}</Text>
                 </View>
               );
             })}
           </View>
         </View>
 
-        {/* Gráfica de deuda */}
+        {/* Gráfica deuda */}
         <View style={styles.chartCard}>
           <Text style={styles.chartTitle}>Deuda en tarjetas — últimos 6 meses</Text>
           <View style={styles.barsContainer}>
-            {deudaPorMes.map((d) => {
+            {deudaPorMes.map((d, i) => {
               const maxDeuda = Math.max(...deudaPorMes.map(x => x.total), 1);
               const altura = (d.total / maxDeuda) * 120;
-              const color = d.total > 0 ? '#6366F1' : '#E5E7EB';
+              const esActual = gastosPorMes[i]?.mes === mesSeleccionado && gastosPorMes[i]?.anio === anioSeleccionado;
+              const color = d.total > 0 ? (esActual ? '#4338CA' : '#6366F1') : '#E5E7EB';
               return (
-                <View key={d.mes} style={styles.barGroup}>
-                  <Text style={styles.barAmount}>{d.total > 0 ? formatMXN(d.total).replace('$', '') : ''}</Text>
-                  <View style={[styles.barSingle, { height: Math.max(altura, 4), backgroundColor: color }]} />
-                  <Text style={styles.barLabel}>{MESES[d.mes]}</Text>
+                <View key={i} style={styles.barGroup}>
+                  <Text style={styles.barAmount}>{d.total > 0 ? formatMXN(d.total).replace('MX$', '$').replace('$', '$') : ''}</Text>
+                  <View style={[styles.barSingle, { height: Math.max(altura, 4), backgroundColor: color, opacity: esActual ? 1 : 0.5 }]} />
+                  <Text style={[styles.barLabel, esActual && { color: '#4F46E5', fontWeight: '600' }]}>{MESES[gastosPorMes[i]?.mes ?? 0]}</Text>
                 </View>
               );
             })}
@@ -200,21 +233,23 @@ export default function DashboardScreen() {
         </View>
 
         {/* Gastos por categoría */}
-        {gastosPorCategoria.length > 0 && (
+        {gastosPorCategoria.length > 0 ? (
           <View style={styles.chartCard}>
-            <Text style={styles.chartTitle}>Gastos por categoría — {MESES[mesActual]}</Text>
+            <Text style={styles.chartTitle}>Gastos por categoría — {MESES[mesSeleccionado]} {anioSeleccionado}</Text>
             {gastosPorCategoria.map(c => {
               const pct = totalCategorias > 0 ? (c.total / totalCategorias) * 100 : 0;
               const color = CATEGORIA_COLORES[c.categoria] ?? '#6B7280';
               return (
                 <View key={c.categoria} style={styles.catRow}>
-                  <View style={styles.catLeft}>
-                    <View style={[styles.catDot, { backgroundColor: color }]} />
-                    <Text style={styles.catNombre}>{c.categoria}</Text>
-                  </View>
-                  <View style={styles.catRight}>
-                    <Text style={styles.catMonto}>{formatMXN(c.total)}</Text>
-                    <Text style={styles.catPct}>{pct.toFixed(0)}%</Text>
+                  <View style={styles.catTop}>
+                    <View style={styles.catLeft}>
+                      <View style={[styles.catDot, { backgroundColor: color }]} />
+                      <Text style={styles.catNombre}>{c.categoria}</Text>
+                    </View>
+                    <View style={styles.catRight}>
+                      <Text style={styles.catMonto}>{formatMXN(c.total)}</Text>
+                      <Text style={styles.catPct}>{pct.toFixed(0)}%</Text>
+                    </View>
                   </View>
                   <View style={styles.catBarBg}>
                     <View style={[styles.catBarFill, { width: `${pct}%`, backgroundColor: color }]} />
@@ -223,11 +258,19 @@ export default function DashboardScreen() {
               );
             })}
           </View>
+        ) : (
+          <View style={styles.chartCard}>
+            <Text style={styles.chartTitle}>Gastos por categoría — {MESES[mesSeleccionado]} {anioSeleccionado}</Text>
+            <View style={styles.emptyChart}>
+              <Ionicons name="pie-chart-outline" size={36} color="#D1D5DB" />
+              <Text style={styles.emptyChartText}>Sin gastos registrados este mes</Text>
+            </View>
+          </View>
         )}
 
         {/* Balance del mes */}
         <View style={styles.chartCard}>
-          <Text style={styles.chartTitle}>Balance {MESES[mesActual]}</Text>
+          <Text style={styles.chartTitle}>Balance {MESES[mesSeleccionado]} {anioSeleccionado}</Text>
           <View style={styles.balanceRow}>
             <Text style={styles.balanceLabel}>Ingresos</Text>
             <Text style={[styles.balanceValor, { color: '#10B981' }]}>{formatMXN(totalIngresosMes)}</Text>
@@ -258,9 +301,13 @@ export default function DashboardScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
-  header: { padding: 20, paddingTop: 60, backgroundColor: '#FFFFFF', borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB' },
-  headerTitle: { fontSize: 24, fontWeight: '600', color: '#111827' },
-  headerSub: { fontSize: 13, color: '#6B7280', marginTop: 2, textTransform: 'capitalize' },
+  mesSelector: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#FFFFFF', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB' },
+  mesBtn: { padding: 8, borderRadius: 8, backgroundColor: '#EEF2FF' },
+  mesBtnDisabled: { backgroundColor: '#F3F4F6' },
+  mesCentro: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  mesTexto: { fontSize: 16, fontWeight: '600', color: '#111827', textTransform: 'capitalize' },
+  mesBadge: { backgroundColor: '#EEF2FF', borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2 },
+  mesBadgeText: { fontSize: 11, color: '#4F46E5', fontWeight: '500' },
   scroll: { padding: 16 },
   metricsRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
   metricCard: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 12, padding: 12, borderTopWidth: 3, alignItems: 'center' },
@@ -278,16 +325,19 @@ const styles = StyleSheet.create({
   bar: { width: BAR_WIDTH / 2.5, borderRadius: 3 },
   barSingle: { width: BAR_WIDTH * 0.7, borderRadius: 3 },
   barLabel: { fontSize: 10, color: '#9CA3AF', marginTop: 6 },
-  barAmount: { fontSize: 8, color: '#6B7280', marginBottom: 2 },
+  barAmount: { fontSize: 7, color: '#6B7280', marginBottom: 2, textAlign: 'center' },
   catRow: { marginBottom: 12 },
-  catLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
+  catTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  catLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   catDot: { width: 10, height: 10, borderRadius: 5 },
-  catNombre: { fontSize: 13, color: '#374151', flex: 1 },
-  catRight: { position: 'absolute', right: 0, top: 0, flexDirection: 'row', gap: 8, alignItems: 'center' },
+  catNombre: { fontSize: 13, color: '#374151' },
+  catRight: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   catMonto: { fontSize: 13, fontWeight: '600', color: '#111827' },
   catPct: { fontSize: 11, color: '#9CA3AF', minWidth: 32, textAlign: 'right' },
   catBarBg: { height: 6, backgroundColor: '#F3F4F6', borderRadius: 3, overflow: 'hidden' },
   catBarFill: { height: '100%', borderRadius: 3 },
+  emptyChart: { alignItems: 'center', padding: 24, gap: 8 },
+  emptyChartText: { fontSize: 13, color: '#9CA3AF' },
   balanceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   balanceLabel: { fontSize: 14, color: '#6B7280' },
   balanceValor: { fontSize: 14, fontWeight: '500' },

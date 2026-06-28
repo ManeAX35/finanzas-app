@@ -13,6 +13,7 @@ import {
   obtenerMovimientosInversion
 } from '../../database/queries/inversiones';
 import { formatMXN, hoy } from '../../database';
+import Header from '../../components/Header';
 
 const FRECUENCIAS = ['diario', 'mensual', 'trimestral', 'al_vencimiento'];
 
@@ -124,12 +125,7 @@ export default function InversionesScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>Inversiones</Text>
-          <Text style={styles.headerSub}>+{formatMXN(totalRendimientoHoy)} hoy</Text>
-        </View>
-      </View>
+      <Header title="Inversiones" subtitle={`+${formatMXN(totalRendimientoHoy)} hoy`} />
 
       {cuentas.length > 0 && (
         <View style={styles.totalCard}>
@@ -248,7 +244,6 @@ export default function InversionesScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Modal nueva cuenta */}
       <Modal visible={modalNueva} animationType="slide" presentationStyle="pageSheet">
         <View style={styles.modal}>
           <View style={styles.modalHeader}>
@@ -299,7 +294,6 @@ export default function InversionesScreen() {
         </View>
       </Modal>
 
-      {/* Modal movimiento */}
       <Modal visible={modalMovimiento} animationType="slide" presentationStyle="pageSheet">
         <View style={styles.modal}>
           <View style={styles.modalHeader}>
@@ -324,7 +318,6 @@ export default function InversionesScreen() {
         </View>
       </Modal>
 
-      {/* Modal tasa */}
       <Modal visible={modalTasa} animationType="slide" presentationStyle="pageSheet">
         <View style={styles.modal}>
           <View style={styles.modalHeader}>
@@ -351,9 +344,6 @@ export default function InversionesScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 60, backgroundColor: '#FFFFFF', borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB' },
-  headerTitle: { fontSize: 24, fontWeight: '600', color: '#111827' },
-  headerSub: { fontSize: 13, color: '#10B981', marginTop: 2 },
   totalCard: { margin: 16, backgroundColor: '#4F46E5', borderRadius: 16, padding: 20, alignItems: 'center' },
   totalLabel: { fontSize: 13, color: '#C7D2FE' },
   totalValor: { fontSize: 28, fontWeight: '700', color: '#FFFFFF', marginTop: 4 },

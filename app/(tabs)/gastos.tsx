@@ -11,6 +11,7 @@ import { obtenerTarjetas } from '../../database/queries/tarjetas';
 import { obtenerCuentasLiquidez } from '../../database/queries/liquidez';
 import { formatMXN, hoy } from '../../database';
 import { Gasto, Compra, TarjetaConVersion, CuentaLiquidez } from '../../types';
+import Header from '../../components/Header';
 
 const CATEGORIAS = ['Alimentación', 'Transporte', 'Salud', 'Entretenimiento', 'Ropa', 'Hogar', 'Tecnología', 'Educación', 'Viaje', 'Otro'];
 const MSI_OPTS = [1, 3, 6, 9, 12, 18, 24];
@@ -126,9 +127,7 @@ export default function GastosScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Gastos</Text>
-      </View>
+      <Header title="Gastos" />
 
       <View style={styles.tabs}>
         {(['gastos', 'msi', 'cuotas'] as const).map(t => (
@@ -383,8 +382,6 @@ export default function GastosScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 60, backgroundColor: '#FFFFFF', borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB' },
-  headerTitle: { fontSize: 24, fontWeight: '600', color: '#111827' },
   tabs: { flexDirection: 'row', backgroundColor: '#FFFFFF', borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB' },
   tabBtn: { flex: 1, paddingVertical: 12, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabBtnActive: { borderBottomColor: '#4F46E5' },

@@ -1,97 +1,136 @@
-import { Tabs } from 'expo-router';
+import { useState } from 'react';
+import {
+  View, Text, StyleSheet, TouchableOpacity,
+  Modal, SafeAreaView, ScrollView
+} from 'react-native';
+import { Tabs, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
 
-interface TabConfig {
+interface MenuItem {
   name: string;
   title: string;
   icon: IoniconsName;
-  iconFocused: IoniconsName;
+  color: string;
 }
 
-const TABS: TabConfig[] = [
-  {
-    name: 'resumen',
-    title: 'Resumen',
-    icon: 'home-outline',
-    iconFocused: 'home',
-  },
-  {
-    name: 'dashboard',
-    title: 'Dashboard',
-    icon: 'bar-chart-outline',
-    iconFocused: 'bar-chart',
-  },
-  {
-    name: 'tarjetas',
-    title: 'Tarjetas',
-    icon: 'card-outline',
-    iconFocused: 'card',
-  },
-  {
-    name: 'cuentas',
-    title: 'Cuentas',
-    icon: 'wallet-outline',
-    iconFocused: 'wallet',
-  },
-  {
-    name: 'gastos',
-    title: 'Gastos',
-    icon: 'receipt-outline',
-    iconFocused: 'receipt',
-  },
-  {
-    name: 'recurrentes',
-    title: 'Recurrentes',
-    icon: 'repeat-outline',
-    iconFocused: 'repeat',
-  },
-  {
-    name: 'inversiones',
-    title: 'Inversiones',
-    icon: 'trending-up-outline',
-    iconFocused: 'trending-up',
-  },
+const MENU_ITEMS: MenuItem[] = [
+  { name: 'resumen', title: 'Resumen', icon: 'home-outline', color: '#4F46E5' },
+  { name: 'dashboard', title: 'Dashboard', icon: 'bar-chart-outline', color: '#6366F1' },
+  { name: 'tarjetas', title: 'Tarjetas', icon: 'card-outline', color: '#3B82F6' },
+  { name: 'cuentas', title: 'Cuentas', icon: 'wallet-outline', color: '#10B981' },
+  { name: 'gastos', title: 'Gastos', icon: 'receipt-outline', color: '#F59E0B' },
+  { name: 'recurrentes', title: 'Recurrentes', icon: 'repeat-outline', color: '#F97316' },
+  { name: 'inversiones', title: 'Inversiones', icon: 'trending-up-outline', color: '#8B5CF6' },
 ];
 
-export default function TabLayout() {
+export function MenuButton({ onPress }: { onPress: () => void }) {
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: '#4F46E5',
-        tabBarInactiveTintColor: '#9CA3AF',
-        tabBarStyle: {
-          backgroundColor: '#FFFFFF',
-          borderTopColor: '#E5E7EB',
-          borderTopWidth: 0.5,
-          paddingBottom: 6,
-          paddingTop: 6,
-          height: 60,
-        },
-        tabBarLabelStyle: {
-          fontSize: 10,
-          fontWeight: '500',
-        },
-      }}
-    >
-      {TABS.map((tab) => (
-        <Tabs.Screen
-          key={tab.name}
-          name={tab.name}
-          options={{
-            title: tab.title,
-            tabBarIcon: ({ focused, color, size }) => (
-              <Ionicons
-                name={focused ? tab.iconFocused : tab.icon}
-                size={size}
-                color={color}
-              />
-            ),
-          }}
-        />
-      ))}
-    </Tabs>
+    <TouchableOpacity onPress={onPress} style={menuStyles.btn}>
+      <Ionicons name="menu-outline" size={26} color="#111827" />
+    </TouchableOpacity>
   );
 }
+
+const menuStyles = StyleSheet.create({
+  btn: { padding: 4 },
+});
+
+let globalOpenMenu: (() => void) | null = null;
+export function openGlobalMenu() { globalOpenMenu?.(); }
+
+export default function TabLayout() {
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [activeTab, setActiveTab] = useState('resumen');
+
+  globalOpenMenu = () => setMenuVisible(true);
+
+  const navegarA = (name: string) => {
+    setActiveTab(name);
+    setMenuVisible(false);
+    router.push(`/(tabs)/${name}` as any);
+  };
+
+  return (
+    <>
+      <Tabs
+        screenOptions={{
+          headerShown: false,
+          tabBarStyle: { display: 'none' },
+        }}
+      >
+        {MENU_ITEMS.map(item => (
+          <Tabs.Screen key={item.name} name={item.name} />
+        ))}
+      </Tabs>
+
+      <Modal
+        visible={menuVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setMenuVisible(false)}
+      >
+        <View style={styles.overlay}>
+          <TouchableOpacity style={styles.overlayBg} onPress={() => setMenuVisible(false)} />
+          <SafeAreaView style={styles.drawer}>
+            <View style={styles.drawerHeader}>
+              <View style={styles.drawerLogo}>
+                <Ionicons name="wallet-outline" size={28} color="#4F46E5" />
+              </View>
+              <View>
+                <Text style={styles.drawerTitle}>Mis Finanzas</Text>
+                <Text style={styles.drawerSub}>Control personal</Text>
+              </View>
+              <TouchableOpacity onPress={() => setMenuVisible(false)} style={styles.closeBtn}>
+                <Ionicons name="close" size={22} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.drawerMenu}>
+              {MENU_ITEMS.map(item => (
+                <TouchableOpacity
+                  key={item.name}
+                  style={[styles.menuItem, activeTab === item.name && styles.menuItemActive]}
+                  onPress={() => navegarA(item.name)}
+                >
+                  <View style={[styles.menuIcon, { backgroundColor: item.color + '18' }]}>
+                    <Ionicons name={item.icon} size={20} color={item.color} />
+                  </View>
+                  <Text style={[styles.menuText, activeTab === item.name && { color: item.color, fontWeight: '600' }]}>
+                    {item.title}
+                  </Text>
+                  {activeTab === item.name && (
+                    <Ionicons name="chevron-forward" size={16} color={item.color} />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            <View style={styles.drawerFooter}>
+              <Text style={styles.drawerFooterText}>Mis Finanzas v1.0</Text>
+            </View>
+          </SafeAreaView>
+        </View>
+      </Modal>
+    </>
+  );
+}
+
+const styles = StyleSheet.create({
+  overlay: { flex: 1, flexDirection: 'row' },
+  overlayBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
+  drawer: { width: 280, backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOffset: { width: -2, height: 0 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 10 },
+  drawerHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 20, paddingTop: 24, borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB' },
+  drawerLogo: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#EEF2FF', justifyContent: 'center', alignItems: 'center' },
+  drawerTitle: { fontSize: 16, fontWeight: '700', color: '#111827' },
+  drawerSub: { fontSize: 12, color: '#6B7280', marginTop: 1 },
+  closeBtn: { marginLeft: 'auto', padding: 4 },
+  drawerMenu: { flex: 1, padding: 12 },
+  menuItem: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 12, marginBottom: 4 },
+  menuItemActive: { backgroundColor: '#F5F3FF' },
+  menuIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  menuText: { flex: 1, fontSize: 15, color: '#374151' },
+  drawerFooter: { padding: 20, borderTopWidth: 0.5, borderTopColor: '#E5E7EB' },
+  drawerFooterText: { fontSize: 12, color: '#9CA3AF', textAlign: 'center' },
+});

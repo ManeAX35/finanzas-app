@@ -12,6 +12,7 @@ import { obtenerRecurrentes } from '../../database/queries/recurrentes';
 import { obtenerCuotasPendientesMes } from '../../database/queries/gastos';
 import { formatMXN } from '../../database';
 import { TarjetaConVersion } from '../../types';
+import Header from '../../components/Header';
 
 export default function ResumenScreen() {
   const [loading, setLoading] = useState(true);
@@ -99,14 +100,11 @@ export default function ResumenScreen() {
         style={styles.scrollView}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Resumen</Text>
-          <Text style={styles.headerDate}>
-            {new Date().toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })}
-          </Text>
-        </View>
+        <Header
+          title="Resumen"
+          subtitle={new Date().toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })}
+        />
 
-        {/* Patrimonio neto */}
         <View style={styles.patrimonioCard}>
           <Text style={styles.patrimonioLabel}>Patrimonio neto</Text>
           <Text style={[styles.patrimonioValor, { color: patrimonioNeto >= 0 ? '#FFFFFF' : '#FCA5A5' }]}>
@@ -115,7 +113,6 @@ export default function ResumenScreen() {
           <Text style={styles.patrimonioSub}>disponible + inversiones − deuda</Text>
         </View>
 
-        {/* Métricas principales */}
         <View style={styles.metricsGrid}>
           <View style={[styles.metricCard, { borderLeftColor: '#10B981' }]}>
             <Ionicons name="wallet-outline" size={18} color="#10B981" />
@@ -139,7 +136,6 @@ export default function ResumenScreen() {
           </View>
         </View>
 
-        {/* Balance del mes */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Balance del mes</Text>
           <View style={styles.balanceCard}>
@@ -164,7 +160,6 @@ export default function ResumenScreen() {
           </View>
         </View>
 
-        {/* Cuentas de liquidez */}
         {cuentasLiquidez.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Mis cuentas</Text>
@@ -182,7 +177,6 @@ export default function ResumenScreen() {
           </View>
         )}
 
-        {/* Tarjetas */}
         {tarjetas.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Tarjetas este corte</Text>
@@ -237,9 +231,6 @@ const styles = StyleSheet.create({
   scrollView: { flex: 1 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   loadingText: { color: '#6B7280', fontSize: 16 },
-  header: { padding: 20, paddingTop: 60, backgroundColor: '#FFFFFF', borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB' },
-  headerTitle: { fontSize: 24, fontWeight: '600', color: '#111827' },
-  headerDate: { fontSize: 14, color: '#6B7280', marginTop: 2, textTransform: 'capitalize' },
   patrimonioCard: { margin: 16, backgroundColor: '#4F46E5', borderRadius: 16, padding: 20, alignItems: 'center' },
   patrimonioLabel: { fontSize: 13, color: '#C7D2FE', marginBottom: 4 },
   patrimonioValor: { fontSize: 32, fontWeight: '700' },

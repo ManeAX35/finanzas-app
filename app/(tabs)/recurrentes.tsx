@@ -14,6 +14,7 @@ import {
 import { obtenerTarjetas } from '../../database/queries/tarjetas';
 import { formatMXN, hoy } from '../../database';
 import { GastoRecurrenteVersion, TarjetaConVersion } from '../../types';
+import Header from '../../components/Header';
 
 const FRECUENCIAS = ['mensual', 'bimestral', 'trimestral', 'semestral', 'anual'];
 const CATEGORIAS = ['Streaming', 'Servicios digitales', 'Salud/Gym', 'Seguro', 'Renta', 'Servicios', 'Educación', 'Mensualidad', 'Otro'];
@@ -119,12 +120,7 @@ export default function RecurrentesScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>Recurrentes</Text>
-          <Text style={styles.headerSub}>Total mensual: {formatMXN(totalMensual)}</Text>
-        </View>
-      </View>
+      <Header title="Recurrentes" subtitle={`Total mensual: ${formatMXN(totalMensual)}`} />
 
       <View style={styles.tabs}>
         {(['activos', 'pendientes'] as const).map(t => (
@@ -161,9 +157,7 @@ export default function RecurrentesScreen() {
                     </View>
                     <View style={styles.cardInfo}>
                       <Text style={styles.cardNombre}>{r.nombre}</Text>
-                      <Text style={styles.cardSub}>
-                        Día {r.dia_cobro} · {r.frecuencia} · {r.categoria}
-                      </Text>
+                      <Text style={styles.cardSub}>Día {r.dia_cobro} · {r.frecuencia} · {r.categoria}</Text>
                       {tarjeta && <Text style={styles.cardTag}>{tarjeta.nombre}</Text>}
                     </View>
                     <View style={styles.cardRight}>
@@ -349,9 +343,6 @@ export default function RecurrentesScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 60, backgroundColor: '#FFFFFF', borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB' },
-  headerTitle: { fontSize: 24, fontWeight: '600', color: '#111827' },
-  headerSub: { fontSize: 13, color: '#6B7280', marginTop: 2 },
   tabs: { flexDirection: 'row', backgroundColor: '#FFFFFF', borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB' },
   tabBtn: { flex: 1, paddingVertical: 12, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabBtnActive: { borderBottomColor: '#4F46E5' },

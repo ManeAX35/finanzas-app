@@ -26,7 +26,6 @@ export async function crearCuentaInversion(
      version.saldo_inicial, version.fecha_inicio, hoy()]
   );
 
-  // Registrar depósito inicial
   if (version.saldo_inicial > 0) {
     await db.runAsync(
       `INSERT INTO movimiento_inversion
@@ -62,7 +61,6 @@ export async function actualizarTasaInversion(
 
   const saldoActual = await obtenerSaldoActual(cuentaId);
 
-  // Cerrar versión actual
   await db.runAsync(
     `UPDATE cuenta_inversion_version
      SET es_actual = 0, vigente_hasta = ?
@@ -70,7 +68,6 @@ export async function actualizarTasaInversion(
     [ayerStr, cuentaId]
   );
 
-  // Abrir nueva versión
   const versionId = uid();
   await db.runAsync(
     `INSERT INTO cuenta_inversion_version
@@ -81,7 +78,6 @@ export async function actualizarTasaInversion(
      saldoActual, hoy(), hoy()]
   );
 
-  // Snapshot antes del cambio
   await tomarRendimientoSnapshot(cuentaId, 'cambio_tasa');
 }
 
@@ -100,18 +96,19 @@ export async function obtenerCuentasInversion(): Promise<(CuentaInversion & Cuen
      ORDER BY ci.nombre ASC`
   );
 }
+
 export async function obtenerSaldoActual(cuentaId: string): Promise<number> {
   const db = await getDatabase();
 
   const result = await db.getFirstAsync<{ saldo: number }>(
-    `SELECT SUM(
+    `SELECT COALESCE(SUM(
        CASE
          WHEN mi.tipo = 'deposito' THEN mi.monto
          WHEN mi.tipo = 'retiro' THEN -mi.monto
          WHEN mi.tipo = 'rendimiento' THEN mi.monto
          ELSE 0
        END
-     ) as saldo
+     ), 0) as saldo
      FROM movimiento_inversion mi
      JOIN cuenta_inversion_version civ ON civ.id = mi.cuenta_version_id
      WHERE civ.cuenta_id = ?`,
@@ -143,9 +140,7 @@ export async function calcularSaldoEsperadoHoy(cuentaId: string): Promise<number
     (hoyDate.getTime() - fechaInicio.getTime()) / (1000 * 60 * 60 * 24)
   );
 
-  // Interés compuesto diario
   const saldoEsperado = saldoInicial * Math.pow(1 + tasaAnual / 365, diasTranscurridos);
-
   return saldoEsperado;
 }
 
@@ -192,9 +187,7 @@ export async function registrarMovimientoInversion(
   if (!version) return;
 
   const saldoActual = await obtenerSaldoActual(cuentaId);
-  const saldoResultante = tipo === 'retiro'
-    ? saldoActual - monto
-    : saldoActual + monto;
+  const saldoResultante = tipo === 'retiro' ? saldoActual - monto : saldoActual + monto;
 
   await db.runAsync(
     `INSERT INTO movimiento_inversion
@@ -248,4 +241,48 @@ export async function eliminarCuentaInversion(cuentaId: string): Promise<void> {
      WHERE cuenta_id = ?`,
     [hoy(), cuentaId]
   );
+}
+
+// ─────────────────────────────────────────
+// TRANSFERENCIAS CRUZADAS
+// ─────────────────────────────────────────
+
+export async function transferirCuentaAInversion(
+  cuentaId: string,
+  cuentaInversionId: string,
+  monto: number,
+  notas?: string
+): Promise<void> {
+  const { crearMovimiento } = await import('./liquidez');
+
+  await crearMovimiento({
+    cuenta_id: cuentaId,
+    tipo: 'gasto',
+    monto,
+    fecha: hoy(),
+    descripcion: notas ?? 'Depósito a inversión',
+    categoria: 'Transferencia',
+  });
+
+  await registrarMovimientoInversion(cuentaInversionId, 'deposito', monto, notas ?? 'Desde cuenta');
+}
+
+export async function transferirInversionACuenta(
+  cuentaInversionId: string,
+  cuentaId: string,
+  monto: number,
+  notas?: string
+): Promise<void> {
+  const { crearMovimiento } = await import('./liquidez');
+
+  await registrarMovimientoInversion(cuentaInversionId, 'retiro', monto, notas ?? 'Retiro a cuenta');
+
+  await crearMovimiento({
+    cuenta_id: cuentaId,
+    tipo: 'ingreso',
+    monto,
+    fecha: hoy(),
+    descripcion: notas ?? 'Retiro de inversión',
+    categoria: 'Transferencia',
+  });
 }

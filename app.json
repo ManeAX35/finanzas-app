@@ -17,7 +17,8 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.maneax.finanzasapp"
     },
     "web": {
       "bundler": "metro"
@@ -26,6 +27,13 @@
       "expo-router",
       "expo-sqlite",
       "expo-asset"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "0420ae1e-2ef4-4749-ba03-dd16d149b10e"
+      }
+    },
+    "owner": "maneax"
   }
 }

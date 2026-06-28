@@ -1,18 +1,22 @@
 import { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, StyleSheet,
-  RefreshControl, TouchableOpacity
+  RefreshControl, TouchableOpacity, Modal, TextInput, Alert
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { obtenerTarjetas, obtenerPeriodoActual } from '../../database/queries/tarjetas';
-import { obtenerTotalDisponible, obtenerSaldosTodos } from '../../database/queries/liquidez';
+import { obtenerTotalDisponible, obtenerSaldosTodos, crearMovimiento } from '../../database/queries/liquidez';
 import { obtenerCuentasInversion, calcularRendimientoHoy } from '../../database/queries/inversiones';
 import { obtenerRecurrentes } from '../../database/queries/recurrentes';
-import { obtenerCuotasPendientesMes } from '../../database/queries/gastos';
-import { formatMXN } from '../../database';
-import { TarjetaConVersion } from '../../types';
+import { obtenerCuotasPendientesMes, crearGasto } from '../../database/queries/gastos';
+import { obtenerCuentasLiquidez } from '../../database/queries/liquidez';
+import { formatMXN, hoy } from '../../database';
+import { TarjetaConVersion, CuentaLiquidez } from '../../types';
 import Header from '../../components/Header';
+
+const CATEGORIAS_GASTO = ['Alimentación', 'Transporte', 'Salud', 'Entretenimiento', 'Ropa', 'Hogar', 'Tecnología', 'Educación', 'Viaje', 'Otro'];
+const CATEGORIAS_INGRESO = ['Sueldo', 'Freelance', 'Venta', 'Reembolso', 'Transferencia', 'Otro'];
 
 export default function ResumenScreen() {
   const [loading, setLoading] = useState(true);
@@ -25,15 +29,29 @@ export default function ResumenScreen() {
   const [cuentasLiquidez, setCuentasLiquidez] = useState<{ id: string; nombre: string; saldo: number }[]>([]);
   const [tarjetas, setTarjetas] = useState<TarjetaConVersion[]>([]);
   const [tarjetasSaldo, setTarjetasSaldo] = useState<Record<string, number>>({});
+  const [cuentas, setCuentas] = useState<CuentaLiquidez[]>([]);
+
   const [modalGasto, setModalGasto] = useState(false);
+  const [modalIngreso, setModalIngreso] = useState(false);
+  const [usaTarjeta, setUsaTarjeta] = useState(true);
+
+  const [formGasto, setFormGasto] = useState({
+    descripcion: '', monto: '', fecha: hoy(),
+    categoria: 'Alimentación', tarjeta_version_id: '', cuenta_liquidez_id: '',
+  });
+
+  const [formIngreso, setFormIngreso] = useState({
+    monto: '', descripcion: '', categoria: 'Sueldo',
+    fecha: hoy(), cuenta_id: '',
+  });
 
   const cargarDatos = async () => {
     try {
-      const hoy = new Date();
-      const anio = hoy.getFullYear();
-      const mes = hoy.getMonth() + 1;
+      const hoyDate = new Date();
+      const anio = hoyDate.getFullYear();
+      const mes = hoyDate.getMonth() + 1;
 
-      const [disponible, saldos, tarjetasList, recurrentes, cuotas, inversiones] =
+      const [disponible, saldos, tarjetasList, recurrentes, cuotas, inversiones, cuentasList] =
         await Promise.all([
           obtenerTotalDisponible(),
           obtenerSaldosTodos(),
@@ -41,11 +59,13 @@ export default function ResumenScreen() {
           obtenerRecurrentes(),
           obtenerCuotasPendientesMes(anio, mes),
           obtenerCuentasInversion(),
+          obtenerCuentasLiquidez(),
         ]);
 
       setTotalDisponible(disponible);
       setCuentasLiquidez(saldos);
       setTarjetas(tarjetasList);
+      setCuentas(cuentasList);
 
       const saldosMap: Record<string, number> = {};
       for (const t of tarjetasList) {
@@ -82,6 +102,50 @@ export default function ResumenScreen() {
   useFocusEffect(useCallback(() => { cargarDatos(); }, []));
 
   const onRefresh = () => { setRefreshing(true); cargarDatos(); };
+
+  const guardarGasto = async () => {
+    if (!formGasto.descripcion || !formGasto.monto) {
+      Alert.alert('Campos requeridos', 'Descripción y monto son obligatorios.');
+      return;
+    }
+    try {
+      await crearGasto({
+        descripcion: formGasto.descripcion,
+        monto: parseFloat(formGasto.monto),
+        fecha: formGasto.fecha,
+        categoria: formGasto.categoria,
+        tarjeta_version_id: usaTarjeta ? formGasto.tarjeta_version_id || undefined : undefined,
+        cuenta_liquidez_id: !usaTarjeta ? formGasto.cuenta_liquidez_id || undefined : undefined,
+      });
+      setModalGasto(false);
+      setFormGasto({ descripcion: '', monto: '', fecha: hoy(), categoria: 'Alimentación', tarjeta_version_id: '', cuenta_liquidez_id: '' });
+      cargarDatos();
+    } catch (e) {
+      Alert.alert('Error', 'No se pudo guardar el gasto.');
+    }
+  };
+
+  const guardarIngreso = async () => {
+    if (!formIngreso.monto || !formIngreso.cuenta_id) {
+      Alert.alert('Campos requeridos', 'Monto y cuenta son obligatorios.');
+      return;
+    }
+    try {
+      await crearMovimiento({
+        cuenta_id: formIngreso.cuenta_id,
+        tipo: 'ingreso',
+        monto: parseFloat(formIngreso.monto),
+        fecha: formIngreso.fecha,
+        descripcion: formIngreso.descripcion,
+        categoria: formIngreso.categoria,
+      });
+      setModalIngreso(false);
+      setFormIngreso({ monto: '', descripcion: '', categoria: 'Sueldo', fecha: hoy(), cuenta_id: '' });
+      cargarDatos();
+    } catch (e) {
+      Alert.alert('Error', 'No se pudo guardar el ingreso.');
+    }
+  };
 
   const neto = totalDisponible - totalDeuda;
   const patrimonioNeto = totalDisponible + totalInversiones - totalDeuda;
@@ -217,11 +281,135 @@ export default function ResumenScreen() {
       </ScrollView>
 
       <View style={styles.bottomBar}>
-        <TouchableOpacity style={styles.bottomBtn} onPress={() => setModalGasto(true)}>
-          <Ionicons name="add-circle-outline" size={22} color="#FFFFFF" />
-          <Text style={styles.bottomBtnText}>Agregar gasto</Text>
+        <TouchableOpacity style={styles.bottomBtnIngreso} onPress={() => setModalIngreso(true)}>
+          <Ionicons name="arrow-down-circle-outline" size={20} color="#FFFFFF" />
+          <Text style={styles.bottomBtnText}>Ingreso</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.bottomBtnGasto} onPress={() => setModalGasto(true)}>
+          <Ionicons name="arrow-up-circle-outline" size={20} color="#FFFFFF" />
+          <Text style={styles.bottomBtnText}>Gasto</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Modal gasto rápido */}
+      <Modal visible={modalGasto} animationType="slide" presentationStyle="pageSheet">
+        <View style={styles.modal}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Nuevo gasto</Text>
+            <TouchableOpacity onPress={() => setModalGasto(false)}>
+              <Ionicons name="close" size={24} color="#6B7280" />
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={styles.modalBody}>
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Descripción</Text>
+              <TextInput style={styles.input} placeholder="Super, gasolina..." placeholderTextColor="#9CA3AF" value={formGasto.descripcion} onChangeText={v => setFormGasto(p => ({ ...p, descripcion: v }))} />
+            </View>
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Monto ($)</Text>
+              <TextInput style={styles.input} placeholder="0.00" placeholderTextColor="#9CA3AF" keyboardType="decimal-pad" value={formGasto.monto} onChangeText={v => setFormGasto(p => ({ ...p, monto: v }))} />
+            </View>
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Fecha</Text>
+              <TextInput style={styles.input} placeholder="YYYY-MM-DD" placeholderTextColor="#9CA3AF" value={formGasto.fecha} onChangeText={v => setFormGasto(p => ({ ...p, fecha: v }))} />
+            </View>
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>¿Con tarjeta de crédito?</Text>
+              <View style={styles.toggleRow}>
+                <TouchableOpacity style={[styles.toggleBtn, usaTarjeta && styles.toggleBtnActive]} onPress={() => setUsaTarjeta(true)}>
+                  <Text style={[styles.toggleText, usaTarjeta && styles.toggleTextActive]}>Sí</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.toggleBtn, !usaTarjeta && styles.toggleBtnActive]} onPress={() => setUsaTarjeta(false)}>
+                  <Text style={[styles.toggleText, !usaTarjeta && styles.toggleTextActive]}>No</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+            {usaTarjeta ? (
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Tarjeta</Text>
+                {tarjetas.map(t => (
+                  <TouchableOpacity key={t.id} style={[styles.selectorItem, formGasto.tarjeta_version_id === t.id && styles.selectorItemActive]} onPress={() => setFormGasto(p => ({ ...p, tarjeta_version_id: t.id }))}>
+                    <Text style={styles.selectorText}>{t.nombre} — {t.banco}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : (
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Cuenta</Text>
+                {cuentas.map(c => (
+                  <TouchableOpacity key={c.id} style={[styles.selectorItem, formGasto.cuenta_liquidez_id === c.id && styles.selectorItemActive]} onPress={() => setFormGasto(p => ({ ...p, cuenta_liquidez_id: c.id }))}>
+                    <Text style={styles.selectorText}>{c.nombre}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Categoría</Text>
+              <View style={styles.chipsRow}>
+                {CATEGORIAS_GASTO.map(cat => (
+                  <TouchableOpacity key={cat} style={[styles.chip, formGasto.categoria === cat && styles.chipActive]} onPress={() => setFormGasto(p => ({ ...p, categoria: cat }))}>
+                    <Text style={[styles.chipText, formGasto.categoria === cat && styles.chipTextActive]}>{cat}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+            <TouchableOpacity style={styles.saveBtn} onPress={guardarGasto}>
+              <Text style={styles.saveBtnText}>Guardar gasto</Text>
+            </TouchableOpacity>
+            <View style={{ height: 40 }} />
+          </ScrollView>
+        </View>
+      </Modal>
+
+      {/* Modal ingreso rápido */}
+      <Modal visible={modalIngreso} animationType="slide" presentationStyle="pageSheet">
+        <View style={styles.modal}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Nuevo ingreso</Text>
+            <TouchableOpacity onPress={() => setModalIngreso(false)}>
+              <Ionicons name="close" size={24} color="#6B7280" />
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={styles.modalBody}>
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Monto ($)</Text>
+              <TextInput style={styles.input} placeholder="0.00" placeholderTextColor="#9CA3AF" keyboardType="decimal-pad" value={formIngreso.monto} onChangeText={v => setFormIngreso(p => ({ ...p, monto: v }))} />
+            </View>
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Descripción (opcional)</Text>
+              <TextInput style={styles.input} placeholder="Sueldo, freelance..." placeholderTextColor="#9CA3AF" value={formIngreso.descripcion} onChangeText={v => setFormIngreso(p => ({ ...p, descripcion: v }))} />
+            </View>
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Fecha</Text>
+              <TextInput style={styles.input} placeholder="YYYY-MM-DD" placeholderTextColor="#9CA3AF" value={formIngreso.fecha} onChangeText={v => setFormIngreso(p => ({ ...p, fecha: v }))} />
+            </View>
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>¿A qué cuenta?</Text>
+              {cuentas.length === 0 ? (
+                <Text style={styles.emptyText}>Primero agrega una cuenta en la sección Cuentas</Text>
+              ) : cuentas.map(c => (
+                <TouchableOpacity key={c.id} style={[styles.selectorItem, formIngreso.cuenta_id === c.id && styles.selectorItemActive]} onPress={() => setFormIngreso(p => ({ ...p, cuenta_id: c.id }))}>
+                  <Text style={styles.selectorText}>{c.nombre}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Categoría</Text>
+              <View style={styles.chipsRow}>
+                {CATEGORIAS_INGRESO.map(cat => (
+                  <TouchableOpacity key={cat} style={[styles.chip, formIngreso.categoria === cat && styles.chipActive]} onPress={() => setFormIngreso(p => ({ ...p, categoria: cat }))}>
+                    <Text style={[styles.chipText, formIngreso.categoria === cat && styles.chipTextActive]}>{cat}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: '#10B981' }]} onPress={guardarIngreso}>
+              <Text style={styles.saveBtnText}>Guardar ingreso</Text>
+            </TouchableOpacity>
+            <View style={{ height: 40 }} />
+          </ScrollView>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -263,7 +451,30 @@ const styles = StyleSheet.create({
   emptyState: { alignItems: 'center', padding: 40, gap: 8 },
   emptyTitle: { fontSize: 16, fontWeight: '500', color: '#6B7280' },
   emptyText: { fontSize: 13, color: '#9CA3AF', textAlign: 'center' },
-  bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, paddingBottom: 24, backgroundColor: '#FFFFFF', borderTopWidth: 0.5, borderTopColor: '#E5E7EB' },
-  bottomBtn: { backgroundColor: '#4F46E5', borderRadius: 14, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  bottomBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
+  bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, paddingBottom: 24, backgroundColor: '#FFFFFF', borderTopWidth: 0.5, borderTopColor: '#E5E7EB', flexDirection: 'row', gap: 10 },
+  bottomBtnIngreso: { flex: 1, backgroundColor: '#10B981', borderRadius: 14, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  bottomBtnGasto: { flex: 1, backgroundColor: '#4F46E5', borderRadius: 14, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  bottomBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '600' },
+  modal: { flex: 1, backgroundColor: '#FFFFFF' },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 60, borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB' },
+  modalTitle: { fontSize: 18, fontWeight: '600', color: '#111827' },
+  modalBody: { padding: 20 },
+  formGroup: { marginBottom: 16 },
+  formLabel: { fontSize: 13, color: '#374151', fontWeight: '500', marginBottom: 6 },
+  input: { backgroundColor: '#F9FAFB', borderWidth: 0.5, borderColor: '#D1D5DB', borderRadius: 10, padding: 12, fontSize: 15, color: '#111827' },
+  toggleRow: { flexDirection: 'row', gap: 8 },
+  toggleBtn: { flex: 1, padding: 10, borderRadius: 8, backgroundColor: '#F3F4F6', alignItems: 'center' },
+  toggleBtnActive: { backgroundColor: '#EEF2FF' },
+  toggleText: { fontSize: 14, color: '#6B7280' },
+  toggleTextActive: { color: '#4F46E5', fontWeight: '600' },
+  selectorItem: { padding: 12, borderRadius: 8, backgroundColor: '#F9FAFB', marginBottom: 6, borderWidth: 0.5, borderColor: '#E5E7EB' },
+  selectorItemActive: { backgroundColor: '#EEF2FF', borderColor: '#6366F1' },
+  selectorText: { fontSize: 14, color: '#374151' },
+  chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: '#F3F4F6', borderWidth: 0.5, borderColor: '#E5E7EB' },
+  chipActive: { backgroundColor: '#EEF2FF', borderColor: '#6366F1' },
+  chipText: { fontSize: 12, color: '#6B7280' },
+  chipTextActive: { color: '#4F46E5', fontWeight: '600' },
+  saveBtn: { backgroundColor: '#4F46E5', borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 8 },
+  saveBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
 });

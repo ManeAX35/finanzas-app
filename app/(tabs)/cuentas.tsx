@@ -11,6 +11,10 @@ import {
   actualizarCuentaLiquidez, eliminarCuentaLiquidez,
   obtenerSaldoCuenta, crearMovimiento, obtenerMovimientos
 } from '../../database/queries/liquidez';
+import {
+  obtenerCuentasInversion,
+  transferirCuentaAInversion
+} from '../../database/queries/inversiones';
 import { formatMXN, hoy } from '../../database';
 import { CuentaLiquidez, MovimientoLiquidez } from '../../types';
 import Header from '../../components/Header';
@@ -35,21 +39,29 @@ const FORM_MOV_INICIAL = { tipo: 'ingreso', monto: '', descripcion: '', categori
 
 export default function CuentasScreen() {
   const [cuentas, setCuentas] = useState<CuentaLiquidez[]>([]);
+  const [inversiones, setInversiones] = useState<any[]>([]);
   const [saldos, setSaldos] = useState<Record<string, number>>({});
   const [movimientos, setMovimientos] = useState<Record<string, MovimientoLiquidez[]>>({});
   const [expandida, setExpandida] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [modalCuenta, setModalCuenta] = useState(false);
   const [modalMovimiento, setModalMovimiento] = useState(false);
+  const [modalInversion, setModalInversion] = useState(false);
   const [editando, setEditando] = useState<string | null>(null);
   const [cuentaSeleccionada, setCuentaSeleccionada] = useState<string | null>(null);
   const [form, setForm] = useState(FORM_INICIAL);
   const [formMov, setFormMov] = useState(FORM_MOV_INICIAL);
+  const [formInversion, setFormInversion] = useState({ monto: '', inversion_id: '', notas: '' });
 
   const cargarDatos = async () => {
     try {
-      const lista = await obtenerCuentasLiquidez();
+      const [lista, invList] = await Promise.all([
+        obtenerCuentasLiquidez(),
+        obtenerCuentasInversion(),
+      ]);
       setCuentas(lista);
+      setInversiones(invList);
+
       const saldosMap: Record<string, number> = {};
       const movsMap: Record<string, MovimientoLiquidez[]> = {};
       for (const c of lista) {
@@ -126,9 +138,36 @@ export default function CuentasScreen() {
         cuenta_destino_id: formMov.tipo === 'transferencia' ? formMov.cuenta_destino_id : undefined,
       });
       setModalMovimiento(false);
+      setFormMov(FORM_MOV_INICIAL);
       cargarDatos();
     } catch (e) {
       Alert.alert('Error', 'No se pudo guardar el movimiento.');
+    }
+  };
+
+  const abrirTransferenciaInversion = (cuentaId: string) => {
+    setCuentaSeleccionada(cuentaId);
+    setFormInversion({ monto: '', inversion_id: '', notas: '' });
+    setModalInversion(true);
+  };
+
+  const guardarTransferenciaInversion = async () => {
+    if (!formInversion.monto || !formInversion.inversion_id || !cuentaSeleccionada) {
+      Alert.alert('Campos requeridos', 'Monto e inversión son obligatorios.');
+      return;
+    }
+    try {
+      await transferirCuentaAInversion(
+        cuentaSeleccionada,
+        formInversion.inversion_id,
+        parseFloat(formInversion.monto),
+        formInversion.notas
+      );
+      setModalInversion(false);
+      setFormInversion({ monto: '', inversion_id: '', notas: '' });
+      cargarDatos();
+    } catch (e) {
+      Alert.alert('Error', 'No se pudo realizar la transferencia.');
     }
   };
 
@@ -189,6 +228,10 @@ export default function CuentasScreen() {
                       <Ionicons name="swap-horizontal-outline" size={14} color="#6366F1" />
                       <Text style={[styles.actionText, { color: '#6366F1' }]}>Transferir</Text>
                     </TouchableOpacity>
+                    <TouchableOpacity style={[styles.actionBtn, { borderColor: '#8B5CF6' }]} onPress={() => abrirTransferenciaInversion(c.id)}>
+                      <Ionicons name="trending-up-outline" size={14} color="#8B5CF6" />
+                      <Text style={[styles.actionText, { color: '#8B5CF6' }]}>A inversión</Text>
+                    </TouchableOpacity>
                     <TouchableOpacity style={[styles.actionBtn, { borderColor: '#D1D5DB' }]} onPress={() => abrirEditar(c)}>
                       <Ionicons name="pencil-outline" size={14} color="#6B7280" />
                       <Text style={[styles.actionText, { color: '#6B7280' }]}>Editar</Text>
@@ -237,6 +280,7 @@ export default function CuentasScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Modal cuenta */}
       <Modal visible={modalCuenta} animationType="slide" presentationStyle="pageSheet">
         <View style={styles.modal}>
           <View style={styles.modalHeader}>
@@ -280,6 +324,7 @@ export default function CuentasScreen() {
         </View>
       </Modal>
 
+      {/* Modal movimiento */}
       <Modal visible={modalMovimiento} animationType="slide" presentationStyle="pageSheet">
         <View style={styles.modal}>
           <View style={styles.modalHeader}>
@@ -330,6 +375,62 @@ export default function CuentasScreen() {
           </ScrollView>
         </View>
       </Modal>
+
+      {/* Modal transferencia a inversión */}
+      <Modal visible={modalInversion} animationType="slide" presentationStyle="pageSheet">
+        <View style={styles.modal}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Cuenta → Inversión</Text>
+            <TouchableOpacity onPress={() => setModalInversion(false)}>
+              <Ionicons name="close" size={24} color="#6B7280" />
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={styles.modalBody}>
+            <Text style={styles.modalInfo}>
+              Se descontará de esta cuenta y se sumará a la inversión seleccionada.
+            </Text>
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Monto ($)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="0.00"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="decimal-pad"
+                value={formInversion.monto}
+                onChangeText={v => setFormInversion(p => ({ ...p, monto: v }))}
+              />
+            </View>
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Inversión destino</Text>
+              {inversiones.length === 0 ? (
+                <Text style={styles.emptyText}>Primero agrega una inversión en la sección Inversiones</Text>
+              ) : inversiones.map((inv: any) => (
+                <TouchableOpacity
+                  key={inv.id}
+                  style={[styles.selectorItem, formInversion.inversion_id === inv.id && styles.selectorItemActive]}
+                  onPress={() => setFormInversion(p => ({ ...p, inversion_id: inv.id }))}
+                >
+                  <Text style={styles.selectorText}>{inv.nombre} — {inv.institucion}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Notas (opcional)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Razón de la transferencia..."
+                placeholderTextColor="#9CA3AF"
+                value={formInversion.notas}
+                onChangeText={v => setFormInversion(p => ({ ...p, notas: v }))}
+              />
+            </View>
+            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: '#8B5CF6' }]} onPress={guardarTransferenciaInversion}>
+              <Text style={styles.saveBtnText}>Confirmar transferencia</Text>
+            </TouchableOpacity>
+            <View style={{ height: 40 }} />
+          </ScrollView>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -366,6 +467,7 @@ const styles = StyleSheet.create({
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 60, borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB' },
   modalTitle: { fontSize: 18, fontWeight: '600', color: '#111827' },
   modalBody: { padding: 20 },
+  modalInfo: { fontSize: 13, color: '#6B7280', backgroundColor: '#F3F0FF', padding: 12, borderRadius: 8, marginBottom: 16 },
   formGroup: { marginBottom: 16 },
   formLabel: { fontSize: 13, color: '#374151', fontWeight: '500', marginBottom: 6 },
   input: { backgroundColor: '#F9FAFB', borderWidth: 0.5, borderColor: '#D1D5DB', borderRadius: 10, padding: 12, fontSize: 15, color: '#111827' },

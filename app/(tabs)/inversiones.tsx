@@ -10,8 +10,10 @@ import {
   obtenerCuentasInversion, crearCuentaInversion,
   calcularRendimientoHoy, registrarMovimientoInversion,
   eliminarCuentaInversion, actualizarTasaInversion,
-  obtenerMovimientosInversion
+  obtenerMovimientosInversion, transferirCuentaAInversion,
+  transferirInversionACuenta
 } from '../../database/queries/inversiones';
+import { obtenerCuentasLiquidez } from '../../database/queries/liquidez';
 import { formatMXN, hoy } from '../../database';
 import Header from '../../components/Header';
 
@@ -25,22 +27,31 @@ const FORM_INICIAL = {
 
 export default function InversionesScreen() {
   const [cuentas, setCuentas] = useState<any[]>([]);
+  const [cuentasLiquidez, setCuentasLiquidezState] = useState<any[]>([]);
   const [rendimientos, setRendimientos] = useState<Record<string, any>>({});
   const [movimientos, setMovimientos] = useState<Record<string, any[]>>({});
   const [refreshing, setRefreshing] = useState(false);
   const [modalNueva, setModalNueva] = useState(false);
   const [modalMovimiento, setModalMovimiento] = useState(false);
   const [modalTasa, setModalTasa] = useState(false);
+  const [modalTransferencia, setModalTransferencia] = useState(false);
+  const [tipoTransferencia, setTipoTransferencia] = useState<'cuentaAInversion' | 'inversionACuenta'>('cuentaAInversion');
   const [cuentaSeleccionada, setCuentaSeleccionada] = useState<string | null>(null);
   const [expandida, setExpandida] = useState<string | null>(null);
   const [form, setForm] = useState(FORM_INICIAL);
   const [formMov, setFormMov] = useState({ tipo: 'deposito', monto: '', notas: '' });
   const [nuevaTasa, setNuevaTasa] = useState('');
+  const [formTransferencia, setFormTransferencia] = useState({ monto: '', cuenta_liquidez_id: '', notas: '' });
 
   const cargarDatos = async () => {
     try {
-      const lista = await obtenerCuentasInversion();
+      const [lista, liquidez] = await Promise.all([
+        obtenerCuentasInversion(),
+        obtenerCuentasLiquidez(),
+      ]);
       setCuentas(lista);
+      setCuentasLiquidezState(liquidez);
+
       const rends: Record<string, any> = {};
       const movs: Record<string, any[]> = {};
       for (const c of lista) {
@@ -107,6 +118,35 @@ export default function InversionesScreen() {
       cargarDatos();
     } catch (e) {
       Alert.alert('Error', 'No se pudo actualizar la tasa.');
+    }
+  };
+
+  const guardarTransferencia = async () => {
+    if (!formTransferencia.monto || !formTransferencia.cuenta_liquidez_id || !cuentaSeleccionada) {
+      Alert.alert('Campos requeridos', 'Monto y cuenta son obligatorios.');
+      return;
+    }
+    try {
+      if (tipoTransferencia === 'cuentaAInversion') {
+        await transferirCuentaAInversion(
+          formTransferencia.cuenta_liquidez_id,
+          cuentaSeleccionada,
+          parseFloat(formTransferencia.monto),
+          formTransferencia.notas
+        );
+      } else {
+        await transferirInversionACuenta(
+          cuentaSeleccionada,
+          formTransferencia.cuenta_liquidez_id,
+          parseFloat(formTransferencia.monto),
+          formTransferencia.notas
+        );
+      }
+      setModalTransferencia(false);
+      setFormTransferencia({ monto: '', cuenta_liquidez_id: '', notas: '' });
+      cargarDatos();
+    } catch (e) {
+      Alert.alert('Error', 'No se pudo realizar la transferencia.');
     }
   };
 
@@ -178,6 +218,10 @@ export default function InversionesScreen() {
                       <Text style={styles.expandedValor}>{formatMXN(c.saldo_inicial)}</Text>
                     </View>
                     <View style={styles.expandedMetric}>
+                      <Text style={styles.expandedLabel}>Saldo real</Text>
+                      <Text style={styles.expandedValor}>{formatMXN(rend?.saldoReal ?? 0)}</Text>
+                    </View>
+                    <View style={styles.expandedMetric}>
                       <Text style={styles.expandedLabel}>Rendimiento hoy</Text>
                       <Text style={[styles.expandedValor, { color: '#10B981' }]}>+{formatMXN(rend?.rendimientoHoy ?? 0)}</Text>
                     </View>
@@ -190,6 +234,7 @@ export default function InversionesScreen() {
                       <Text style={styles.expandedValor}>{c.fecha_inicio}</Text>
                     </View>
                   </View>
+
                   <View style={styles.expandedActions}>
                     <TouchableOpacity style={styles.actionBtn} onPress={() => { setCuentaSeleccionada(c.id); setFormMov({ ...formMov, tipo: 'deposito' }); setModalMovimiento(true); }}>
                       <Ionicons name="arrow-down-outline" size={14} color="#10B981" />
@@ -198,6 +243,14 @@ export default function InversionesScreen() {
                     <TouchableOpacity style={styles.actionBtn} onPress={() => { setCuentaSeleccionada(c.id); setFormMov({ ...formMov, tipo: 'retiro' }); setModalMovimiento(true); }}>
                       <Ionicons name="arrow-up-outline" size={14} color="#EF4444" />
                       <Text style={[styles.actionText, { color: '#EF4444' }]}>Retirar</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.actionBtn} onPress={() => { setCuentaSeleccionada(c.id); setTipoTransferencia('cuentaAInversion'); setFormTransferencia({ monto: '', cuenta_liquidez_id: '', notas: '' }); setModalTransferencia(true); }}>
+                      <Ionicons name="arrow-down-circle-outline" size={14} color="#3B82F6" />
+                      <Text style={[styles.actionText, { color: '#3B82F6' }]}>Desde cuenta</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.actionBtn} onPress={() => { setCuentaSeleccionada(c.id); setTipoTransferencia('inversionACuenta'); setFormTransferencia({ monto: '', cuenta_liquidez_id: '', notas: '' }); setModalTransferencia(true); }}>
+                      <Ionicons name="arrow-up-circle-outline" size={14} color="#F97316" />
+                      <Text style={[styles.actionText, { color: '#F97316' }]}>A cuenta</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.actionBtn} onPress={() => { setCuentaSeleccionada(c.id); setNuevaTasa(String(c.tasa_anual)); setModalTasa(true); }}>
                       <Ionicons name="pencil-outline" size={14} color="#6366F1" />
@@ -208,6 +261,7 @@ export default function InversionesScreen() {
                       <Text style={[styles.actionText, { color: '#9CA3AF' }]}>Eliminar</Text>
                     </TouchableOpacity>
                   </View>
+
                   {movs.length > 0 && (
                     <View style={styles.movimientos}>
                       <Text style={styles.movTitle}>Últimos movimientos</Text>
@@ -244,6 +298,7 @@ export default function InversionesScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Modal nueva cuenta */}
       <Modal visible={modalNueva} animationType="slide" presentationStyle="pageSheet">
         <View style={styles.modal}>
           <View style={styles.modalHeader}>
@@ -294,6 +349,7 @@ export default function InversionesScreen() {
         </View>
       </Modal>
 
+      {/* Modal movimiento */}
       <Modal visible={modalMovimiento} animationType="slide" presentationStyle="pageSheet">
         <View style={styles.modal}>
           <View style={styles.modalHeader}>
@@ -318,6 +374,7 @@ export default function InversionesScreen() {
         </View>
       </Modal>
 
+      {/* Modal tasa */}
       <Modal visible={modalTasa} animationType="slide" presentationStyle="pageSheet">
         <View style={styles.modal}>
           <View style={styles.modalHeader}>
@@ -336,6 +393,68 @@ export default function InversionesScreen() {
               <Text style={styles.saveBtnText}>Actualizar tasa (SCD 2)</Text>
             </TouchableOpacity>
           </View>
+        </View>
+      </Modal>
+
+      {/* Modal transferencia cruzada */}
+      <Modal visible={modalTransferencia} animationType="slide" presentationStyle="pageSheet">
+        <View style={styles.modal}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>
+              {tipoTransferencia === 'cuentaAInversion' ? 'Cuenta → Inversión' : 'Inversión → Cuenta'}
+            </Text>
+            <TouchableOpacity onPress={() => setModalTransferencia(false)}>
+              <Ionicons name="close" size={24} color="#6B7280" />
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={styles.modalBody}>
+            <Text style={styles.modalInfo}>
+              {tipoTransferencia === 'cuentaAInversion'
+                ? 'Se descontará de tu cuenta y se sumará a esta inversión.'
+                : 'Se retirará de esta inversión y se sumará a tu cuenta.'}
+            </Text>
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Monto ($)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="0.00"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="decimal-pad"
+                value={formTransferencia.monto}
+                onChangeText={v => setFormTransferencia(p => ({ ...p, monto: v }))}
+              />
+            </View>
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>
+                {tipoTransferencia === 'cuentaAInversion' ? 'Cuenta origen' : 'Cuenta destino'}
+              </Text>
+              {cuentasLiquidez.length === 0 ? (
+                <Text style={styles.emptyText}>Primero agrega una cuenta en la sección Cuentas</Text>
+              ) : cuentasLiquidez.map((c: any) => (
+                <TouchableOpacity
+                  key={c.id}
+                  style={[styles.selectorItem, formTransferencia.cuenta_liquidez_id === c.id && styles.selectorItemActive]}
+                  onPress={() => setFormTransferencia(p => ({ ...p, cuenta_liquidez_id: c.id }))}
+                >
+                  <Text style={styles.selectorText}>{c.nombre}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Notas (opcional)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Razón de la transferencia..."
+                placeholderTextColor="#9CA3AF"
+                value={formTransferencia.notas}
+                onChangeText={v => setFormTransferencia(p => ({ ...p, notas: v }))}
+              />
+            </View>
+            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: '#3B82F6' }]} onPress={guardarTransferencia}>
+              <Text style={styles.saveBtnText}>Confirmar transferencia</Text>
+            </TouchableOpacity>
+            <View style={{ height: 40 }} />
+          </ScrollView>
         </View>
       </Modal>
     </View>
@@ -392,6 +511,9 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: '#EEF2FF', borderColor: '#6366F1' },
   chipText: { fontSize: 12, color: '#6B7280' },
   chipTextActive: { color: '#4F46E5', fontWeight: '600' },
+  selectorItem: { padding: 12, borderRadius: 8, backgroundColor: '#F9FAFB', marginBottom: 6, borderWidth: 0.5, borderColor: '#E5E7EB' },
+  selectorItemActive: { backgroundColor: '#EEF2FF', borderColor: '#6366F1' },
+  selectorText: { fontSize: 14, color: '#374151' },
   saveBtn: { backgroundColor: '#4F46E5', borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 8 },
   saveBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
 });

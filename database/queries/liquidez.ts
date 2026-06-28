@@ -33,22 +33,22 @@ export async function obtenerSaldoCuenta(cuentaId: string): Promise<number> {
   const db = await getDatabase();
 
   const result = await db.getFirstAsync<{ saldo: number }>(
-    `SELECT
-       SUM(CASE
+    `SELECT COALESCE(SUM(
+       CASE
          WHEN tipo = 'ingreso' THEN monto
          WHEN tipo = 'gasto' THEN -monto
-         WHEN tipo = 'transferencia' AND cuenta_id = ? THEN -monto
-         WHEN tipo = 'transferencia' AND cuenta_destino_id = ? THEN monto
+         WHEN tipo = 'transferencia' AND cuenta_id = ? AND cuenta_destino_id != ? THEN -monto
+         WHEN tipo = 'transferencia' AND cuenta_destino_id = ? AND cuenta_id != ? THEN monto
          ELSE 0
-       END) as saldo
+       END
+     ), 0) as saldo
      FROM movimiento_liquidez
      WHERE cuenta_id = ? OR cuenta_destino_id = ?`,
-    [cuentaId, cuentaId, cuentaId, cuentaId]
+    [cuentaId, cuentaId, cuentaId, cuentaId, cuentaId, cuentaId]
   );
 
   return result?.saldo ?? 0;
 }
-
 export async function obtenerSaldosTodos(): Promise<{ id: string; nombre: string; saldo: number }[]> {
   const db = await getDatabase();
   const cuentas = await obtenerCuentasLiquidez();

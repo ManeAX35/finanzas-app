@@ -24,6 +24,12 @@ const TABS: TabConfig[] = [
     iconFocused: 'card',
   },
   {
+    name: 'cuentas',
+    title: 'Cuentas',
+    icon: 'wallet-outline',
+    iconFocused: 'wallet',
+  },
+  {
     name: 'gastos',
     title: 'Gastos',
     icon: 'receipt-outline',
@@ -59,7 +65,7 @@ export default function TabLayout() {
           height: 60,
         },
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: '500',
         },
       }}

@@ -89,9 +89,7 @@ export async function actualizarTasaInversion(
 // OBTENER CUENTAS
 // ─────────────────────────────────────────
 
-export async function obtenerCuentasInversion(): Promise
-  (CuentaInversion & CuentaInversionVersion)[]
-> {
+export async function obtenerCuentasInversion(): Promise<(CuentaInversion & CuentaInversionVersion)[]> {
   const db = await getDatabase();
   return await db.getAllAsync(
     `SELECT ci.*, civ.id as version_id, civ.tasa_anual, civ.frecuencia_rendimiento,
@@ -102,7 +100,6 @@ export async function obtenerCuentasInversion(): Promise
      ORDER BY ci.nombre ASC`
   );
 }
-
 export async function obtenerSaldoActual(cuentaId: string): Promise<number> {
   const db = await getDatabase();
 

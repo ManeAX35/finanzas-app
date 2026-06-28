@@ -40,15 +40,12 @@ export default function InversionesScreen() {
     try {
       const lista = await obtenerCuentasInversion();
       setCuentas(lista);
-
       const rends: Record<string, any> = {};
       const movs: Record<string, any[]> = {};
-
       for (const c of lista) {
         rends[c.id] = await calcularRendimientoHoy(c.id);
         movs[c.id] = await obtenerMovimientosInversion(c.id, 5);
       }
-
       setRendimientos(rends);
       setMovimientos(movs);
     } catch (e) {
@@ -132,12 +129,8 @@ export default function InversionesScreen() {
           <Text style={styles.headerTitle}>Inversiones</Text>
           <Text style={styles.headerSub}>+{formatMXN(totalRendimientoHoy)} hoy</Text>
         </View>
-        <TouchableOpacity style={styles.addBtn} onPress={() => setModalNueva(true)}>
-          <Ionicons name="add" size={22} color="#FFFFFF" />
-        </TouchableOpacity>
       </View>
 
-      {/* Resumen total */}
       {cuentas.length > 0 && (
         <View style={styles.totalCard}>
           <Text style={styles.totalLabel}>Total en inversiones</Text>
@@ -161,7 +154,6 @@ export default function InversionesScreen() {
           const movs = movimientos[c.id] ?? [];
           const isExpanded = expandida === c.id;
           const rendAcumulado = rend?.rendimientoAcumulado ?? 0;
-
           return (
             <View key={c.id} style={styles.card}>
               <TouchableOpacity onPress={() => setExpandida(isExpanded ? null : c.id)}>
@@ -191,9 +183,7 @@ export default function InversionesScreen() {
                     </View>
                     <View style={styles.expandedMetric}>
                       <Text style={styles.expandedLabel}>Rendimiento hoy</Text>
-                      <Text style={[styles.expandedValor, { color: '#10B981' }]}>
-                        +{formatMXN(rend?.rendimientoHoy ?? 0)}
-                      </Text>
+                      <Text style={[styles.expandedValor, { color: '#10B981' }]}>+{formatMXN(rend?.rendimientoHoy ?? 0)}</Text>
                     </View>
                     <View style={styles.expandedMetric}>
                       <Text style={styles.expandedLabel}>Frecuencia</Text>
@@ -204,38 +194,24 @@ export default function InversionesScreen() {
                       <Text style={styles.expandedValor}>{c.fecha_inicio}</Text>
                     </View>
                   </View>
-
                   <View style={styles.expandedActions}>
-                    <TouchableOpacity
-                      style={styles.actionBtn}
-                      onPress={() => { setCuentaSeleccionada(c.id); setFormMov({ ...formMov, tipo: 'deposito' }); setModalMovimiento(true); }}
-                    >
+                    <TouchableOpacity style={styles.actionBtn} onPress={() => { setCuentaSeleccionada(c.id); setFormMov({ ...formMov, tipo: 'deposito' }); setModalMovimiento(true); }}>
                       <Ionicons name="arrow-down-outline" size={14} color="#10B981" />
                       <Text style={[styles.actionText, { color: '#10B981' }]}>Depositar</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.actionBtn}
-                      onPress={() => { setCuentaSeleccionada(c.id); setFormMov({ ...formMov, tipo: 'retiro' }); setModalMovimiento(true); }}
-                    >
+                    <TouchableOpacity style={styles.actionBtn} onPress={() => { setCuentaSeleccionada(c.id); setFormMov({ ...formMov, tipo: 'retiro' }); setModalMovimiento(true); }}>
                       <Ionicons name="arrow-up-outline" size={14} color="#EF4444" />
                       <Text style={[styles.actionText, { color: '#EF4444' }]}>Retirar</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.actionBtn}
-                      onPress={() => { setCuentaSeleccionada(c.id); setNuevaTasa(String(c.tasa_anual)); setModalTasa(true); }}
-                    >
+                    <TouchableOpacity style={styles.actionBtn} onPress={() => { setCuentaSeleccionada(c.id); setNuevaTasa(String(c.tasa_anual)); setModalTasa(true); }}>
                       <Ionicons name="pencil-outline" size={14} color="#6366F1" />
                       <Text style={[styles.actionText, { color: '#6366F1' }]}>Editar tasa</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.actionBtn}
-                      onPress={() => eliminar(c.id, c.nombre)}
-                    >
+                    <TouchableOpacity style={styles.actionBtn} onPress={() => eliminar(c.id, c.nombre)}>
                       <Ionicons name="trash-outline" size={14} color="#9CA3AF" />
                       <Text style={[styles.actionText, { color: '#9CA3AF' }]}>Eliminar</Text>
                     </TouchableOpacity>
                   </View>
-
                   {movs.length > 0 && (
                     <View style={styles.movimientos}>
                       <Text style={styles.movTitle}>Últimos movimientos</Text>
@@ -262,8 +238,15 @@ export default function InversionesScreen() {
             </View>
           );
         })}
-        <View style={{ height: 20 }} />
+        <View style={{ height: 100 }} />
       </ScrollView>
+
+      <View style={styles.bottomBar}>
+        <TouchableOpacity style={styles.bottomBtn} onPress={() => setModalNueva(true)}>
+          <Ionicons name="add-circle-outline" size={22} color="#FFFFFF" />
+          <Text style={styles.bottomBtnText}>Agregar inversión</Text>
+        </TouchableOpacity>
+      </View>
 
       {/* Modal nueva cuenta */}
       <Modal visible={modalNueva} animationType="slide" presentationStyle="pageSheet">
@@ -294,7 +277,6 @@ export default function InversionesScreen() {
                 />
               </View>
             ))}
-
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Frecuencia de rendimiento</Text>
               <View style={styles.chipsRow}>
@@ -309,7 +291,6 @@ export default function InversionesScreen() {
                 ))}
               </View>
             </View>
-
             <TouchableOpacity style={styles.saveBtn} onPress={guardarNueva}>
               <Text style={styles.saveBtnText}>Guardar inversión</Text>
             </TouchableOpacity>
@@ -322,9 +303,7 @@ export default function InversionesScreen() {
       <Modal visible={modalMovimiento} animationType="slide" presentationStyle="pageSheet">
         <View style={styles.modal}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>
-              {formMov.tipo === 'deposito' ? 'Depositar' : 'Retirar'}
-            </Text>
+            <Text style={styles.modalTitle}>{formMov.tipo === 'deposito' ? 'Depositar' : 'Retirar'}</Text>
             <TouchableOpacity onPress={() => setModalMovimiento(false)}>
               <Ionicons name="close" size={24} color="#6B7280" />
             </TouchableOpacity>
@@ -332,24 +311,11 @@ export default function InversionesScreen() {
           <View style={styles.modalBody}>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Monto ($)</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="0.00"
-                placeholderTextColor="#9CA3AF"
-                keyboardType="decimal-pad"
-                value={formMov.monto}
-                onChangeText={v => setFormMov(p => ({ ...p, monto: v }))}
-              />
+              <TextInput style={styles.input} placeholder="0.00" placeholderTextColor="#9CA3AF" keyboardType="decimal-pad" value={formMov.monto} onChangeText={v => setFormMov(p => ({ ...p, monto: v }))} />
             </View>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Notas (opcional)</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Razón del movimiento..."
-                placeholderTextColor="#9CA3AF"
-                value={formMov.notas}
-                onChangeText={v => setFormMov(p => ({ ...p, notas: v }))}
-              />
+              <TextInput style={styles.input} placeholder="Razón del movimiento..." placeholderTextColor="#9CA3AF" value={formMov.notas} onChangeText={v => setFormMov(p => ({ ...p, notas: v }))} />
             </View>
             <TouchableOpacity style={styles.saveBtn} onPress={guardarMovimiento}>
               <Text style={styles.saveBtnText}>Confirmar</Text>
@@ -368,19 +334,10 @@ export default function InversionesScreen() {
             </TouchableOpacity>
           </View>
           <View style={styles.modalBody}>
-            <Text style={styles.modalInfo}>
-              Al cambiar la tasa se cerrará la versión actual y se abrirá una nueva. El historial queda guardado.
-            </Text>
+            <Text style={styles.modalInfo}>Al cambiar la tasa se cerrará la versión actual y se abrirá una nueva. El historial queda guardado.</Text>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Nueva tasa anual (%)</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="11.5"
-                placeholderTextColor="#9CA3AF"
-                keyboardType="decimal-pad"
-                value={nuevaTasa}
-                onChangeText={setNuevaTasa}
-              />
+              <TextInput style={styles.input} placeholder="11.5" placeholderTextColor="#9CA3AF" keyboardType="decimal-pad" value={nuevaTasa} onChangeText={setNuevaTasa} />
             </View>
             <TouchableOpacity style={styles.saveBtn} onPress={guardarNuevaTasa}>
               <Text style={styles.saveBtnText}>Actualizar tasa (SCD 2)</Text>
@@ -397,7 +354,6 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 60, backgroundColor: '#FFFFFF', borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB' },
   headerTitle: { fontSize: 24, fontWeight: '600', color: '#111827' },
   headerSub: { fontSize: 13, color: '#10B981', marginTop: 2 },
-  addBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#4F46E5', justifyContent: 'center', alignItems: 'center' },
   totalCard: { margin: 16, backgroundColor: '#4F46E5', borderRadius: 16, padding: 20, alignItems: 'center' },
   totalLabel: { fontSize: 13, color: '#C7D2FE' },
   totalValor: { fontSize: 28, fontWeight: '700', color: '#FFFFFF', marginTop: 4 },
@@ -430,6 +386,9 @@ const styles = StyleSheet.create({
   movTipo: { fontSize: 12, color: '#374151', textTransform: 'capitalize' },
   movFecha: { fontSize: 11, color: '#9CA3AF' },
   movMonto: { fontSize: 13, fontWeight: '600' },
+  bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, paddingBottom: 24, backgroundColor: '#FFFFFF', borderTopWidth: 0.5, borderTopColor: '#E5E7EB' },
+  bottomBtn: { backgroundColor: '#4F46E5', borderRadius: 14, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  bottomBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
   modal: { flex: 1, backgroundColor: '#FFFFFF' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 60, borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB' },
   modalTitle: { fontSize: 18, fontWeight: '600', color: '#111827' },

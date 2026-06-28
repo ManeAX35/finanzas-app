@@ -128,14 +128,6 @@ export default function GastosScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Gastos</Text>
-        <View style={styles.headerBtns}>
-          <TouchableOpacity style={styles.addBtn} onPress={() => setModalGasto(true)}>
-            <Ionicons name="receipt-outline" size={16} color="#FFFFFF" />
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.addBtn, { backgroundColor: '#10B981' }]} onPress={() => setModalMSI(true)}>
-            <Ionicons name="layers-outline" size={16} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View>
       </View>
 
       <View style={styles.tabs}>
@@ -246,8 +238,28 @@ export default function GastosScreen() {
             ))}
           </>
         )}
-        <View style={{ height: 20 }} />
+        <View style={{ height: 100 }} />
       </ScrollView>
+
+      <View style={styles.bottomBar}>
+        {tab === 'gastos' && (
+          <TouchableOpacity style={styles.bottomBtn} onPress={() => setModalGasto(true)}>
+            <Ionicons name="add-circle-outline" size={22} color="#FFFFFF" />
+            <Text style={styles.bottomBtnText}>Agregar gasto</Text>
+          </TouchableOpacity>
+        )}
+        {tab === 'msi' && (
+          <TouchableOpacity style={[styles.bottomBtn, { backgroundColor: '#10B981' }]} onPress={() => setModalMSI(true)}>
+            <Ionicons name="add-circle-outline" size={22} color="#FFFFFF" />
+            <Text style={styles.bottomBtnText}>Agregar compra MSI</Text>
+          </TouchableOpacity>
+        )}
+        {tab === 'cuotas' && (
+          <View style={styles.bottomBtnDisabled}>
+            <Text style={styles.bottomBtnDisabledText}>Las cuotas se generan automáticamente</Text>
+          </View>
+        )}
+      </View>
 
       {/* Modal gasto */}
       <Modal visible={modalGasto} animationType="slide" presentationStyle="pageSheet">
@@ -302,15 +314,13 @@ export default function GastosScreen() {
             )}
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Categoría</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View style={styles.chipsRow}>
-                  {CATEGORIAS.map(cat => (
-                    <TouchableOpacity key={cat} style={[styles.chip, formGasto.categoria === cat && styles.chipActive]} onPress={() => setFormGasto(p => ({ ...p, categoria: cat }))}>
-                      <Text style={[styles.chipText, formGasto.categoria === cat && styles.chipTextActive]}>{cat}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </ScrollView>
+              <View style={styles.chipsRow}>
+                {CATEGORIAS.map(cat => (
+                  <TouchableOpacity key={cat} style={[styles.chip, formGasto.categoria === cat && styles.chipActive]} onPress={() => setFormGasto(p => ({ ...p, categoria: cat }))}>
+                    <Text style={[styles.chipText, formGasto.categoria === cat && styles.chipTextActive]}>{cat}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
             <TouchableOpacity style={styles.saveBtn} onPress={guardarGasto}>
               <Text style={styles.saveBtnText}>Guardar gasto</Text>
@@ -375,8 +385,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 60, backgroundColor: '#FFFFFF', borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB' },
   headerTitle: { fontSize: 24, fontWeight: '600', color: '#111827' },
-  headerBtns: { flexDirection: 'row', gap: 8 },
-  addBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#4F46E5', justifyContent: 'center', alignItems: 'center' },
   tabs: { flexDirection: 'row', backgroundColor: '#FFFFFF', borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB' },
   tabBtn: { flex: 1, paddingVertical: 12, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabBtnActive: { borderBottomColor: '#4F46E5' },
@@ -405,6 +413,11 @@ const styles = StyleSheet.create({
   cuotaRight: { alignItems: 'flex-end', gap: 6 },
   pagarBtn: { backgroundColor: '#10B981', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 4 },
   pagarBtnText: { color: '#FFFFFF', fontSize: 12, fontWeight: '600' },
+  bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, paddingBottom: 24, backgroundColor: '#FFFFFF', borderTopWidth: 0.5, borderTopColor: '#E5E7EB' },
+  bottomBtn: { backgroundColor: '#4F46E5', borderRadius: 14, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  bottomBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
+  bottomBtnDisabled: { backgroundColor: '#F3F4F6', borderRadius: 14, padding: 16, alignItems: 'center' },
+  bottomBtnDisabledText: { color: '#9CA3AF', fontSize: 14 },
   modal: { flex: 1, backgroundColor: '#FFFFFF' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 60, borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB' },
   modalTitle: { fontSize: 18, fontWeight: '600', color: '#111827' },

@@ -91,7 +91,6 @@ export default function RecurrentesScreen() {
         es_domiciliado: form.es_domiciliado ? 1 : 0,
         monto_variable: form.monto_variable ? 1 : 0,
       };
-
       if (editando) {
         await actualizarRecurrente(editando, datos);
       } else {
@@ -125,9 +124,6 @@ export default function RecurrentesScreen() {
           <Text style={styles.headerTitle}>Recurrentes</Text>
           <Text style={styles.headerSub}>Total mensual: {formatMXN(totalMensual)}</Text>
         </View>
-        <TouchableOpacity style={styles.addBtn} onPress={abrirNuevo}>
-          <Ionicons name="add" size={22} color="#FFFFFF" />
-        </TouchableOpacity>
       </View>
 
       <View style={styles.tabs}>
@@ -236,8 +232,15 @@ export default function RecurrentesScreen() {
             ))}
           </>
         )}
-        <View style={{ height: 20 }} />
+        <View style={{ height: 100 }} />
       </ScrollView>
+
+      <View style={styles.bottomBar}>
+        <TouchableOpacity style={styles.bottomBtn} onPress={abrirNuevo}>
+          <Ionicons name="add-circle-outline" size={22} color="#FFFFFF" />
+          <Text style={styles.bottomBtnText}>Agregar recurrente</Text>
+        </TouchableOpacity>
+      </View>
 
       <Modal visible={modalVisible} animationType="slide" presentationStyle="pageSheet">
         <View style={styles.modal}>
@@ -349,7 +352,6 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 60, backgroundColor: '#FFFFFF', borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB' },
   headerTitle: { fontSize: 24, fontWeight: '600', color: '#111827' },
   headerSub: { fontSize: 13, color: '#6B7280', marginTop: 2 },
-  addBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#4F46E5', justifyContent: 'center', alignItems: 'center' },
   tabs: { flexDirection: 'row', backgroundColor: '#FFFFFF', borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB' },
   tabBtn: { flex: 1, paddingVertical: 12, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabBtnActive: { borderBottomColor: '#4F46E5' },
@@ -377,6 +379,9 @@ const styles = StyleSheet.create({
   pagarBtnText: { color: '#FFFFFF', fontSize: 12, fontWeight: '600' },
   pagadoBadge: { backgroundColor: '#D1FAE5', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
   pagadoText: { fontSize: 12, color: '#065F46', fontWeight: '500' },
+  bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, paddingBottom: 24, backgroundColor: '#FFFFFF', borderTopWidth: 0.5, borderTopColor: '#E5E7EB' },
+  bottomBtn: { backgroundColor: '#4F46E5', borderRadius: 14, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  bottomBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
   modal: { flex: 1, backgroundColor: '#FFFFFF' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 60, borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB' },
   modalTitle: { fontSize: 18, fontWeight: '600', color: '#111827' },

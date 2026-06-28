@@ -218,8 +218,15 @@ export default function ResumenScreen() {
         </View>
       )}
 
-      <View style={{ height: 20 }} />
+      <View style={{ height: 100 }} />
     </ScrollView>
+
+    <View style={styles.bottomBar}>
+      <TouchableOpacity style={styles.bottomBtn} onPress={() => {}}>
+        <Ionicons name="add-circle-outline" size={22} color="#FFFFFF" />
+        <Text style={styles.bottomBtnText}>Agregar gasto</Text>
+      </TouchableOpacity>
+    </View>
   );
 }
 
@@ -262,4 +269,7 @@ const styles = StyleSheet.create({
   emptyState: { alignItems: 'center', padding: 40, gap: 8 },
   emptyTitle: { fontSize: 16, fontWeight: '500', color: '#6B7280' },
   emptyText: { fontSize: 13, color: '#9CA3AF', textAlign: 'center' },
+  bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, paddingBottom: 24, backgroundColor: '#FFFFFF', borderTopWidth: 0.5, borderTopColor: '#E5E7EB' },
+  bottomBtn: { backgroundColor: '#4F46E5', borderRadius: 14, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  bottomBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
 });

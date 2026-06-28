@@ -110,9 +110,6 @@ export default function TarjetasScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Tarjetas</Text>
-        <TouchableOpacity style={styles.addBtn} onPress={abrirNueva}>
-          <Ionicons name="add" size={22} color="#FFFFFF" />
-        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -123,7 +120,7 @@ export default function TarjetasScreen() {
           <View style={styles.emptyState}>
             <Ionicons name="card-outline" size={48} color="#D1D5DB" />
             <Text style={styles.emptyTitle}>Sin tarjetas</Text>
-            <Text style={styles.emptyText}>Agrega tu primera tarjeta tocando el botón +</Text>
+            <Text style={styles.emptyText}>Agrega tu primera tarjeta tocando el botón de abajo</Text>
           </View>
         ) : (
           tarjetas.map(t => {
@@ -179,8 +176,15 @@ export default function TarjetasScreen() {
             );
           })
         )}
-        <View style={{ height: 20 }} />
+        <View style={{ height: 100 }} />
       </ScrollView>
+
+      <View style={styles.bottomBar}>
+        <TouchableOpacity style={styles.bottomBtn} onPress={abrirNueva}>
+          <Ionicons name="add-circle-outline" size={22} color="#FFFFFF" />
+          <Text style={styles.bottomBtnText}>Agregar tarjeta</Text>
+        </TouchableOpacity>
+      </View>
 
       <Modal visible={modalVisible} animationType="slide" presentationStyle="pageSheet">
         <View style={styles.modal}>
@@ -247,7 +251,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 60, backgroundColor: '#FFFFFF', borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB' },
   headerTitle: { fontSize: 24, fontWeight: '600', color: '#111827' },
-  addBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#4F46E5', justifyContent: 'center', alignItems: 'center' },
   scroll: { padding: 16 },
   emptyState: { alignItems: 'center', padding: 40, gap: 8 },
   emptyTitle: { fontSize: 16, fontWeight: '500', color: '#6B7280' },
@@ -268,6 +271,9 @@ const styles = StyleSheet.create({
   progressFill: { height: '100%', borderRadius: 3 },
   pctText: { fontSize: 11, color: '#9CA3AF' },
   tasaText: { fontSize: 11, color: '#9CA3AF', marginTop: 2 },
+  bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, paddingBottom: 24, backgroundColor: '#FFFFFF', borderTopWidth: 0.5, borderTopColor: '#E5E7EB' },
+  bottomBtn: { backgroundColor: '#4F46E5', borderRadius: 14, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  bottomBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
   modal: { flex: 1, backgroundColor: '#FFFFFF' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 60, borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB' },
   modalTitle: { fontSize: 18, fontWeight: '600', color: '#111827' },

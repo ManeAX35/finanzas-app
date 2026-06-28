@@ -88,7 +88,7 @@ export default function InversionesScreen() {
       setForm(FORM_INICIAL);
       cargarDatos();
     } catch (e) {
-      Alert.alert('Error', 'No se pudo guardar la cuenta.');
+      Alert.alert('Error', String(e));
     }
   };
 
@@ -99,13 +99,13 @@ export default function InversionesScreen() {
         cuentaSeleccionada,
         formMov.tipo as any,
         parseFloat(formMov.monto),
-        formMov.notas
+        formMov.notas || undefined
       );
       setModalMovimiento(false);
       setFormMov({ tipo: 'deposito', monto: '', notas: '' });
       cargarDatos();
     } catch (e) {
-      Alert.alert('Error', 'No se pudo registrar el movimiento.');
+      Alert.alert('Error', String(e));
     }
   };
 
@@ -117,7 +117,7 @@ export default function InversionesScreen() {
       setNuevaTasa('');
       cargarDatos();
     } catch (e) {
-      Alert.alert('Error', 'No se pudo actualizar la tasa.');
+      Alert.alert('Error', String(e));
     }
   };
 
@@ -132,21 +132,21 @@ export default function InversionesScreen() {
           formTransferencia.cuenta_liquidez_id,
           cuentaSeleccionada,
           parseFloat(formTransferencia.monto),
-          formTransferencia.notas
+          formTransferencia.notas || undefined
         );
       } else {
         await transferirInversionACuenta(
           cuentaSeleccionada,
           formTransferencia.cuenta_liquidez_id,
           parseFloat(formTransferencia.monto),
-          formTransferencia.notas
+          formTransferencia.notas || undefined
         );
       }
       setModalTransferencia(false);
       setFormTransferencia({ monto: '', cuenta_liquidez_id: '', notas: '' });
       cargarDatos();
     } catch (e) {
-      Alert.alert('Error', 'No se pudo realizar la transferencia.');
+      Alert.alert('Error', String(e));
     }
   };
 
@@ -160,7 +160,7 @@ export default function InversionesScreen() {
     ]);
   };
 
-  const totalInversiones = Object.values(rendimientos).reduce((s, r) => s + (r?.saldoEsperado ?? 0), 0);
+  const totalInversiones = Object.values(rendimientos).reduce((s, r) => s + (r?.saldoReal ?? 0), 0);
   const totalRendimientoHoy = Object.values(rendimientos).reduce((s, r) => s + (r?.rendimientoHoy ?? 0), 0);
 
   return (
@@ -202,10 +202,8 @@ export default function InversionesScreen() {
                     <Text style={styles.cardInstitucion}>{c.institucion} · {c.tasa_anual}% anual</Text>
                   </View>
                   <View style={styles.cardRight}>
-                    <Text style={styles.cardSaldo}>{formatMXN(rend?.saldoEsperado ?? c.saldo_inicial)}</Text>
-                    <Text style={[styles.cardRend, { color: rendAcumulado >= 0 ? '#10B981' : '#EF4444' }]}>
-                      +{formatMXN(rendAcumulado)}
-                    </Text>
+                    <Text style={styles.cardSaldo}>{formatMXN(rend?.saldoReal ?? c.saldo_inicial)}</Text>
+                    <Text style={styles.cardSaldoLabel}>real</Text>
                   </View>
                 </View>
               </TouchableOpacity>
@@ -214,12 +212,10 @@ export default function InversionesScreen() {
                 <View style={styles.expanded}>
                   <View style={styles.expandedMetrics}>
                     <View style={styles.expandedMetric}>
-                      <Text style={styles.expandedLabel}>Saldo inicial</Text>
-                      <Text style={styles.expandedValor}>{formatMXN(c.saldo_inicial)}</Text>
-                    </View>
-                    <View style={styles.expandedMetric}>
-                      <Text style={styles.expandedLabel}>Saldo real</Text>
-                      <Text style={styles.expandedValor}>{formatMXN(rend?.saldoReal ?? 0)}</Text>
+                      <Text style={styles.expandedLabel}>Rendimiento acumulado</Text>
+                      <Text style={[styles.expandedValor, { color: rendAcumulado >= 0 ? '#10B981' : '#EF4444' }]}>
+                        +{formatMXN(rendAcumulado)}
+                      </Text>
                     </View>
                     <View style={styles.expandedMetric}>
                       <Text style={styles.expandedLabel}>Rendimiento hoy</Text>
@@ -479,7 +475,8 @@ const styles = StyleSheet.create({
   cardInstitucion: { fontSize: 12, color: '#6B7280', marginTop: 2 },
   cardRight: { alignItems: 'flex-end' },
   cardSaldo: { fontSize: 16, fontWeight: '700', color: '#111827' },
-  cardRend: { fontSize: 12, fontWeight: '500', marginTop: 2 },
+  cardSaldoLabel: { fontSize: 10, color: '#9CA3AF', marginTop: 1 },
+  cardSaldoReal: { fontSize: 13, fontWeight: '600', color: '#374151', marginTop: 4 },
   expanded: { marginTop: 14, borderTopWidth: 0.5, borderTopColor: '#F3F4F6', paddingTop: 14 },
   expandedMetrics: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 14 },
   expandedMetric: { minWidth: '40%' },

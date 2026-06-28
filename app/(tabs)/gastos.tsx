@@ -83,7 +83,7 @@ export default function GastosScreen() {
       setFormGasto({ descripcion: '', monto: '', fecha: hoy(), categoria: 'Alimentación', notas: '', tarjeta_version_id: '', cuenta_liquidez_id: '' });
       cargarDatos();
     } catch (e) {
-      Alert.alert('Error', 'No se pudo guardar el gasto.');
+      Alert.alert('Error', String(e));
     }
   };
 
@@ -107,7 +107,7 @@ export default function GastosScreen() {
       setFormMSI({ descripcion: '', monto_total: '', meses: '3', fecha_compra: hoy(), categoria: 'Tecnología', tarjeta_version_id: '', origen: 'tarjeta', notas: '' });
       cargarDatos();
     } catch (e) {
-      Alert.alert('Error', 'No se pudo guardar la compra.');
+      Alert.alert('Error', String(e));
     }
   };
 

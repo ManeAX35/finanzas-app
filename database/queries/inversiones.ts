@@ -13,25 +13,31 @@ export async function crearCuentaInversion(
   const cuentaId = uid();
   const versionId = uid();
 
+  const p1 = [cuentaId, cuenta.institucion ?? null, cuenta.nombre ?? null];
+  console.log('[crearCuentaInversion] INSERT cuenta_inversion:', JSON.stringify(p1));
   await db.runAsync(
     'INSERT INTO cuenta_inversion (id, institucion, nombre) VALUES (?, ?, ?)',
-    [cuentaId, cuenta.institucion, cuenta.nombre]
+    p1
   );
 
+  const p2 = [versionId, cuentaId, version.tasa_anual ?? null, version.frecuencia_rendimiento ?? null,
+    version.saldo_inicial ?? 0, version.fecha_inicio ?? null, hoy()];
+  console.log('[crearCuentaInversion] INSERT cuenta_inversion_version:', JSON.stringify(p2));
   await db.runAsync(
     `INSERT INTO cuenta_inversion_version
       (id, cuenta_id, tasa_anual, frecuencia_rendimiento, saldo_inicial, fecha_inicio, es_actual, vigente_desde)
      VALUES (?, ?, ?, ?, ?, ?, 1, ?)`,
-    [versionId, cuentaId, version.tasa_anual, version.frecuencia_rendimiento,
-     version.saldo_inicial, version.fecha_inicio, hoy()]
+    p2
   );
 
   if (version.saldo_inicial > 0) {
+    const p3 = [uid(), versionId, version.saldo_inicial ?? null, version.fecha_inicio ?? null, version.saldo_inicial ?? null];
+    console.log('[crearCuentaInversion] INSERT movimiento_inversion:', JSON.stringify(p3));
     await db.runAsync(
       `INSERT INTO movimiento_inversion
         (id, cuenta_version_id, tipo, monto, fecha, saldo_resultante, notas)
        VALUES (?, ?, 'deposito', ?, ?, ?, 'Saldo inicial')`,
-      [uid(), versionId, version.saldo_inicial, version.fecha_inicio, version.saldo_inicial]
+      p3
     );
   }
 
@@ -115,6 +121,7 @@ export async function obtenerSaldoActual(cuentaId: string): Promise<number> {
     [cuentaId]
   );
 
+  console.log('[obtenerSaldoActual] cuentaId:', cuentaId, '→ saldo:', result?.saldo);
   return result?.saldo ?? 0;
 }
 
@@ -132,16 +139,13 @@ export async function calcularSaldoEsperadoHoy(cuentaId: string): Promise<number
 
   if (!version) return 0;
 
-  const saldoInicial = version.saldo_inicial;
+  const saldoReal = await obtenerSaldoActual(cuentaId);
   const tasaAnual = version.tasa_anual / 100;
-  const fechaInicio = new Date(version.fecha_inicio);
-  const hoyDate = new Date();
   const diasTranscurridos = Math.floor(
-    (hoyDate.getTime() - fechaInicio.getTime()) / (1000 * 60 * 60 * 24)
+    (Date.now() - new Date(version.fecha_inicio).getTime()) / (1000 * 60 * 60 * 24)
   );
 
-  const saldoEsperado = saldoInicial * Math.pow(1 + tasaAnual / 365, diasTranscurridos);
-  return saldoEsperado;
+  return saldoReal * Math.pow(1 + tasaAnual / 365, diasTranscurridos);
 }
 
 export async function calcularRendimientoHoy(cuentaId: string): Promise<{
@@ -150,21 +154,34 @@ export async function calcularRendimientoHoy(cuentaId: string): Promise<{
   rendimientoAcumulado: number;
   rendimientoHoy: number;
 }> {
-  const saldoEsperado = await calcularSaldoEsperadoHoy(cuentaId);
-  const saldoReal = await obtenerSaldoActual(cuentaId);
-
   const db = await getDatabase();
   const version = await db.getFirstAsync<CuentaInversionVersion>(
     'SELECT * FROM cuenta_inversion_version WHERE cuenta_id = ? AND es_actual = 1',
     [cuentaId]
   );
 
-  const saldoInicial = version?.saldo_inicial ?? 0;
+  const saldoReal = await obtenerSaldoActual(cuentaId);
   const tasaAnual = (version?.tasa_anual ?? 0) / 100;
-  const rendimientoAcumulado = saldoEsperado - saldoInicial;
-  const rendimientoHoy = saldoInicial * (tasaAnual / 365);
+  const diasTranscurridos = Math.floor(
+    (Date.now() - new Date(version?.fecha_inicio ?? new Date()).getTime()) / (1000 * 60 * 60 * 24)
+  );
+
+  const saldoEsperado = saldoReal * Math.pow(1 + tasaAnual / 365, diasTranscurridos);
+  const rendimientoAcumulado = saldoEsperado - saldoReal;
+  const rendimientoHoy = saldoReal * (tasaAnual / 365);
 
   return { saldoEsperado, saldoReal, rendimientoAcumulado, rendimientoHoy };
+}
+
+export async function calcularRendimientoDiario(cuentaId: string): Promise<number> {
+  const db = await getDatabase();
+  const version = await db.getFirstAsync<CuentaInversionVersion>(
+    'SELECT * FROM cuenta_inversion_version WHERE cuenta_id = ? AND es_actual = 1',
+    [cuentaId]
+  );
+  if (!version) return 0;
+  const saldoReal = await obtenerSaldoActual(cuentaId);
+  return saldoReal * (version.tasa_anual / 100 / 365);
 }
 
 // ─────────────────────────────────────────
@@ -189,12 +206,16 @@ export async function registrarMovimientoInversion(
   const saldoActual = await obtenerSaldoActual(cuentaId);
   const saldoResultante = tipo === 'retiro' ? saldoActual - monto : saldoActual + monto;
 
+  console.log('[registrarMovimientoInversion]', { cuentaId, versionId: version.id, tipo, monto, saldoActual, saldoResultante });
+
   await db.runAsync(
     `INSERT INTO movimiento_inversion
       (id, cuenta_version_id, tipo, monto, fecha, saldo_resultante, notas)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [uid(), version.id, tipo, monto, hoy(), saldoResultante, notas ?? null]
   );
+
+  console.log('[registrarMovimientoInversion] movimiento insertado');
 }
 
 export async function obtenerMovimientosInversion(

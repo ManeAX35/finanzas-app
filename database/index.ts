@@ -8,8 +8,26 @@ let db: SQLite.SQLiteDatabase;
 export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
   if (db) return db;
   db = await SQLite.openDatabaseAsync(DB_NAME);
+  patchRunAsync(db);
   await initDatabase(db);
   return db;
+}
+
+function patchRunAsync(database: SQLite.SQLiteDatabase): void {
+  const orig = database.runAsync.bind(database);
+  (database as any).runAsync = (sql: string, params?: any) => {
+    if (Array.isArray(params)) {
+      const sanitized = params.map((p: any, i: number) => {
+        if (p === undefined) {
+          console.warn(`[DB] param[${i}] es undefined en: ${sql.trim().slice(0, 80)}`);
+          return null;
+        }
+        return p;
+      });
+      return orig(sql, sanitized);
+    }
+    return orig(sql, params);
+  };
 }
 
 async function initDatabase(db: SQLite.SQLiteDatabase): Promise<void> {

@@ -37,14 +37,12 @@ export async function obtenerSaldoCuenta(cuentaId: string): Promise<number> {
        CASE
          WHEN tipo = 'ingreso' THEN monto
          WHEN tipo = 'gasto' THEN -monto
-         WHEN tipo = 'transferencia' AND cuenta_id = ? AND cuenta_destino_id != ? THEN -monto
-         WHEN tipo = 'transferencia' AND cuenta_destino_id = ? AND cuenta_id != ? THEN monto
          ELSE 0
        END
      ), 0) as saldo
      FROM movimiento_liquidez
-     WHERE cuenta_id = ? OR cuenta_destino_id = ?`,
-    [cuentaId, cuentaId, cuentaId, cuentaId, cuentaId, cuentaId]
+     WHERE cuenta_id = ?`,
+    [cuentaId]
   );
 
   return result?.saldo ?? 0;
@@ -94,8 +92,46 @@ export async function crearMovimiento(
   movimiento: Omit<MovimientoLiquidez, 'id' | 'created_at'>
 ): Promise<string> {
   const db = await getDatabase();
-  const id = uid();
 
+  if (movimiento.tipo === 'transferencia' && movimiento.cuenta_destino_id) {
+    const idOrigen = uid();
+    const idDestino = uid();
+
+    const sql = `INSERT INTO movimiento_liquidez (id, cuenta_id, tipo, monto, fecha, descripcion, categoria, cuenta_destino_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
+
+    const paramsOrigen: (string | number | null)[] = [
+      idOrigen,
+      movimiento.cuenta_id ?? null,
+      'gasto',
+      movimiento.monto ?? null,
+      movimiento.fecha ?? null,
+      movimiento.descripcion ?? null,
+      movimiento.categoria ?? null,
+      movimiento.cuenta_destino_id ?? null,
+    ];
+
+    const paramsDestino: (string | number | null)[] = [
+      idDestino,
+      movimiento.cuenta_destino_id ?? null,
+      'ingreso',
+      movimiento.monto ?? null,
+      movimiento.fecha ?? null,
+      movimiento.descripcion ?? null,
+      movimiento.categoria ?? null,
+      movimiento.cuenta_id ?? null,
+    ];
+
+    console.log('[crearMovimiento] SQL:', sql);
+    console.log('[crearMovimiento] paramsOrigen:', JSON.stringify(paramsOrigen));
+    await db.runAsync(sql, paramsOrigen);
+
+    console.log('[crearMovimiento] paramsDestino:', JSON.stringify(paramsDestino));
+    await db.runAsync(sql, paramsDestino);
+
+    return idOrigen;
+  }
+
+  const id = uid();
   await db.runAsync(
     `INSERT INTO movimiento_liquidez
       (id, cuenta_id, tipo, monto, fecha, descripcion, categoria, cuenta_destino_id)
@@ -115,10 +151,10 @@ export async function obtenerMovimientos(
   const db = await getDatabase();
   return await db.getAllAsync<MovimientoLiquidez>(
     `SELECT * FROM movimiento_liquidez
-     WHERE cuenta_id = ? OR cuenta_destino_id = ?
+     WHERE cuenta_id = ?
      ORDER BY fecha DESC, created_at DESC
      LIMIT ?`,
-    [cuentaId, cuentaId, limite]
+    [cuentaId, limite]
   );
 }
 

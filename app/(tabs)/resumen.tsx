@@ -3,7 +3,7 @@ import {
   View, Text, ScrollView, StyleSheet,
   RefreshControl, TouchableOpacity, Modal, TextInput, Alert
 } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { obtenerTarjetas, obtenerPeriodoActual } from '../../database/queries/tarjetas';
 import { obtenerTotalDisponible, obtenerSaldosTodos, crearMovimiento } from '../../database/queries/liquidez';
@@ -87,8 +87,8 @@ export default function ResumenScreen() {
 
       let invTotal = 0;
       for (const inv of inversiones) {
-        const { saldoEsperado } = await calcularRendimientoHoy(inv.id);
-        invTotal += saldoEsperado;
+        const { saldoReal } = await calcularRendimientoHoy(inv.id);
+        invTotal += saldoReal;
       }
       setTotalInversiones(invTotal);
     } catch (e) {
@@ -98,6 +98,8 @@ export default function ResumenScreen() {
       setRefreshing(false);
     }
   };
+
+  const router = useRouter();
 
   useFocusEffect(useCallback(() => { cargarDatos(); }, []));
 
@@ -178,26 +180,26 @@ export default function ResumenScreen() {
         </View>
 
         <View style={styles.metricsGrid}>
-          <View style={[styles.metricCard, { borderLeftColor: '#10B981' }]}>
+          <TouchableOpacity style={[styles.metricCard, { borderLeftColor: '#10B981' }]} onPress={() => router.push('/(tabs)/cuentas')}>
             <Ionicons name="wallet-outline" size={18} color="#10B981" />
             <Text style={styles.metricLabel}>Disponible</Text>
             <Text style={[styles.metricValor, { color: '#10B981' }]}>{formatMXN(totalDisponible)}</Text>
-          </View>
-          <View style={[styles.metricCard, { borderLeftColor: '#EF4444' }]}>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.metricCard, { borderLeftColor: '#EF4444' }]} onPress={() => router.push('/(tabs)/tarjetas')}>
             <Ionicons name="card-outline" size={18} color="#EF4444" />
             <Text style={styles.metricLabel}>Deuda total</Text>
             <Text style={[styles.metricValor, { color: '#EF4444' }]}>{formatMXN(totalDeuda)}</Text>
-          </View>
-          <View style={[styles.metricCard, { borderLeftColor: '#F59E0B' }]}>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.metricCard, { borderLeftColor: '#F59E0B' }]} onPress={() => router.push('/(tabs)/recurrentes')}>
             <Ionicons name="repeat-outline" size={18} color="#F59E0B" />
             <Text style={styles.metricLabel}>Recurrentes</Text>
             <Text style={[styles.metricValor, { color: '#F59E0B' }]}>{formatMXN(totalRecurrentes)}</Text>
-          </View>
-          <View style={[styles.metricCard, { borderLeftColor: '#6366F1' }]}>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.metricCard, { borderLeftColor: '#6366F1' }]} onPress={() => router.push('/(tabs)/inversiones')}>
             <Ionicons name="trending-up-outline" size={18} color="#6366F1" />
             <Text style={styles.metricLabel}>Inversiones</Text>
             <Text style={[styles.metricValor, { color: '#6366F1' }]}>{formatMXN(totalInversiones)}</Text>
-          </View>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.section}>
@@ -228,7 +230,7 @@ export default function ResumenScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Mis cuentas</Text>
             {cuentasLiquidez.map(c => (
-              <View key={c.id} style={styles.cuentaRow}>
+              <TouchableOpacity key={c.id} style={styles.cuentaRow} onPress={() => router.push('/(tabs)/cuentas')}>
                 <View style={styles.cuentaIcon}>
                   <Ionicons name="wallet-outline" size={16} color="#6366F1" />
                 </View>
@@ -236,7 +238,7 @@ export default function ResumenScreen() {
                 <Text style={[styles.cuentaSaldo, { color: c.saldo >= 0 ? '#10B981' : '#EF4444' }]}>
                   {formatMXN(c.saldo)}
                 </Text>
-              </View>
+              </TouchableOpacity>
             ))}
           </View>
         )}
@@ -249,7 +251,7 @@ export default function ResumenScreen() {
               const pct = t.limite_credito > 0 ? (saldo / t.limite_credito) * 100 : 0;
               const color = pct > 70 ? '#EF4444' : pct > 40 ? '#F59E0B' : '#10B981';
               return (
-                <View key={t.tarjeta_id} style={styles.tarjetaCard}>
+                <TouchableOpacity key={t.tarjeta_id} style={styles.tarjetaCard} onPress={() => router.push('/(tabs)/tarjetas')}>
                   <View style={styles.tarjetaHeader}>
                     <View>
                       <Text style={styles.tarjetaNombre}>{t.nombre}</Text>
@@ -263,7 +265,7 @@ export default function ResumenScreen() {
                   <Text style={styles.tarjetaLimite}>
                     {formatMXN(t.limite_credito - saldo)} disponible · Corte día {t.dia_corte}
                   </Text>
-                </View>
+                </TouchableOpacity>
               );
             })}
           </View>

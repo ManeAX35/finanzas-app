@@ -100,7 +100,7 @@ export default function RecurrentesScreen() {
       setModalVisible(false);
       cargarDatos();
     } catch (e) {
-      Alert.alert('Error', 'No se pudo guardar.');
+      Alert.alert('Error', String(e));
     }
   };
 

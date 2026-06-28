@@ -20,6 +20,7 @@ import { CuentaLiquidez, MovimientoLiquidez } from '../../types';
 import Header from '../../components/Header';
 
 const TIPOS = ['debito', 'digital', 'efectivo', 'monedero'] as const;
+type TipoCuenta = typeof TIPOS[number];
 const TIPO_LABEL: Record<string, string> = {
   debito: 'Débito', digital: 'Digital', efectivo: 'Efectivo', monedero: 'Monedero'
 };
@@ -34,7 +35,8 @@ const COLOR_MAP: Record<string, string> = {
 };
 const CATEGORIAS_MOV = ['Sueldo', 'Transferencia', 'Venta', 'Reembolso', 'Alimentación', 'Transporte', 'Servicios', 'Entretenimiento', 'Salud', 'Otro'];
 
-const FORM_INICIAL = { nombre: '', tipo: 'debito', institucion: '', color: 'blue' };
+type FormCuenta = { nombre: string; tipo: TipoCuenta; institucion: string; color: string };
+const FORM_INICIAL: FormCuenta = { nombre: '', tipo: 'debito', institucion: '', color: 'blue' };
 const FORM_MOV_INICIAL = { tipo: 'ingreso', monto: '', descripcion: '', categoria: 'Sueldo', fecha: hoy(), cuenta_destino_id: '' };
 
 export default function CuentasScreen() {
@@ -92,19 +94,22 @@ export default function CuentasScreen() {
   };
 
   const guardarCuenta = async () => {
-    if (!form.nombre) {
+    if (!form.nombre.trim()) {
       Alert.alert('Campo requerido', 'El nombre es obligatorio.');
       return;
     }
     try {
+      const institucion = form.institucion.trim() || undefined;
       if (editando) {
-        await actualizarCuentaLiquidez(editando, { nombre: form.nombre, tipo: form.tipo as any, institucion: form.institucion, color: form.color });
+        await actualizarCuentaLiquidez(editando, { nombre: form.nombre.trim(), tipo: form.tipo, institucion, color: form.color });
       } else {
-        await crearCuentaLiquidez({ nombre: form.nombre, tipo: form.tipo as any, institucion: form.institucion, color: form.color });
+        await crearCuentaLiquidez({ nombre: form.nombre.trim(), tipo: form.tipo, institucion, color: form.color });
       }
       setModalCuenta(false);
-      cargarDatos();
+      setEditando(null);
+      await cargarDatos();
     } catch (e) {
+      console.error('guardarCuenta error:', e);
       Alert.alert('Error', 'No se pudo guardar la cuenta.');
     }
   };
@@ -127,6 +132,10 @@ export default function CuentasScreen() {
       Alert.alert('Campo requerido', 'El monto es obligatorio.');
       return;
     }
+    if (formMov.tipo === 'transferencia' && !formMov.cuenta_destino_id) {
+      Alert.alert('Campo requerido', 'Selecciona una cuenta destino.');
+      return;
+    }
     try {
       await crearMovimiento({
         cuenta_id: cuentaSeleccionada,
@@ -141,7 +150,7 @@ export default function CuentasScreen() {
       setFormMov(FORM_MOV_INICIAL);
       cargarDatos();
     } catch (e) {
-      Alert.alert('Error', 'No se pudo guardar el movimiento.');
+      Alert.alert('Error', String(e));
     }
   };
 
@@ -285,7 +294,7 @@ export default function CuentasScreen() {
         <View style={styles.modal}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>{editando ? 'Editar cuenta' : 'Nueva cuenta'}</Text>
-            <TouchableOpacity onPress={() => setModalCuenta(false)}>
+            <TouchableOpacity onPress={() => { setModalCuenta(false); setEditando(null); }}>
               <Ionicons name="close" size={24} color="#6B7280" />
             </TouchableOpacity>
           </View>

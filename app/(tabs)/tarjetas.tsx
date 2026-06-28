@@ -93,7 +93,7 @@ export default function TarjetasScreen() {
       setModalVisible(false);
       cargarDatos();
     } catch (e) {
-      Alert.alert('Error', 'No se pudo guardar la tarjeta.');
+      Alert.alert('Error', String(e));
     }
   };
 

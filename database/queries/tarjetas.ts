@@ -13,18 +13,22 @@ export async function crearTarjeta(
   const tarjetaId = uid();
   const versionId = uid();
 
+  const pt = [tarjetaId, tipo];
+  console.log('[crearTarjeta] INSERT tarjeta:', JSON.stringify(pt));
   await db.runAsync(
     'INSERT INTO tarjeta (id, tipo) VALUES (?, ?)',
-    [tarjetaId, tipo]
+    pt
   );
 
+  const pv = [versionId, tarjetaId, version.banco ?? null, version.nombre ?? null, version.digitos ?? null,
+    version.limite_credito ?? 0, version.dia_corte ?? null, version.dias_pago ?? 20,
+    version.tasa_anual ?? 0, version.color ?? null, hoy()];
+  console.log('[crearTarjeta] INSERT tarjeta_version:', JSON.stringify(pv));
   await db.runAsync(
-    `INSERT INTO tarjeta_version 
+    `INSERT INTO tarjeta_version
       (id, tarjeta_id, banco, nombre, digitos, limite_credito, dia_corte, dias_pago, tasa_anual, color, es_actual, vigente_desde)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
-    [versionId, tarjetaId, version.banco, version.nombre, version.digitos ?? null,
-     version.limite_credito, version.dia_corte, version.dias_pago,
-     version.tasa_anual, version.color, hoy()]
+    pv
   );
 
   await generarPeriodosCorte(tarjetaId, version.dia_corte, version.dias_pago);
@@ -56,13 +60,13 @@ export async function actualizarTarjeta(
   // Abrir nueva versión
   const versionId = uid();
   await db.runAsync(
-    `INSERT INTO tarjeta_version 
+    `INSERT INTO tarjeta_version
       (id, tarjeta_id, banco, nombre, digitos, limite_credito, dia_corte, dias_pago, tasa_anual, color, es_actual, vigente_desde)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
-    [versionId, tarjetaId, nuevaVersion.banco, nuevaVersion.nombre,
-     nuevaVersion.digitos ?? null, nuevaVersion.limite_credito,
-     nuevaVersion.dia_corte, nuevaVersion.dias_pago,
-     nuevaVersion.tasa_anual, nuevaVersion.color, hoy()]
+    [versionId, tarjetaId, nuevaVersion.banco ?? null, nuevaVersion.nombre ?? null,
+     nuevaVersion.digitos ?? null, nuevaVersion.limite_credito ?? 0,
+     nuevaVersion.dia_corte ?? null, nuevaVersion.dias_pago ?? 20,
+     nuevaVersion.tasa_anual ?? 0, nuevaVersion.color ?? null, hoy()]
   );
 
   // Snapshot del saldo antes del cambio

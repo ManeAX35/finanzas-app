@@ -18,6 +18,12 @@ const TABS: TabConfig[] = [
     iconFocused: 'home',
   },
   {
+    name: 'dashboard',
+    title: 'Dashboard',
+    icon: 'bar-chart-outline',
+    iconFocused: 'bar-chart',
+  },
+  {
     name: 'tarjetas',
     title: 'Tarjetas',
     icon: 'card-outline',

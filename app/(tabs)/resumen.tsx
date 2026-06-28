@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, StyleSheet,
   RefreshControl, TouchableOpacity
@@ -24,6 +24,7 @@ export default function ResumenScreen() {
   const [cuentasLiquidez, setCuentasLiquidez] = useState<{ id: string; nombre: string; saldo: number }[]>([]);
   const [tarjetas, setTarjetas] = useState<TarjetaConVersion[]>([]);
   const [tarjetasSaldo, setTarjetasSaldo] = useState<Record<string, number>>({});
+  const [modalGasto, setModalGasto] = useState(false);
 
   const cargarDatos = async () => {
     try {
@@ -45,7 +46,6 @@ export default function ResumenScreen() {
       setCuentasLiquidez(saldos);
       setTarjetas(tarjetasList);
 
-      // Saldo por tarjeta
       const saldosMap: Record<string, number> = {};
       for (const t of tarjetasList) {
         const periodo = await obtenerPeriodoActual(t.tarjeta_id);
@@ -94,144 +94,147 @@ export default function ResumenScreen() {
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-    >
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Resumen</Text>
-        <Text style={styles.headerDate}>
-          {new Date().toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })}
-        </Text>
-      </View>
+    <View style={styles.container}>
+      <ScrollView
+        style={styles.scrollView}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Resumen</Text>
+          <Text style={styles.headerDate}>
+            {new Date().toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })}
+          </Text>
+        </View>
 
-      {/* Patrimonio neto */}
-      <View style={styles.patrimonioCard}>
-        <Text style={styles.patrimonioLabel}>Patrimonio neto</Text>
-        <Text style={[styles.patrimonioValor, { color: patrimonioNeto >= 0 ? '#10B981' : '#EF4444' }]}>
-          {formatMXN(patrimonioNeto)}
-        </Text>
-        <Text style={styles.patrimonioSub}>disponible + inversiones − deuda</Text>
-      </View>
+        {/* Patrimonio neto */}
+        <View style={styles.patrimonioCard}>
+          <Text style={styles.patrimonioLabel}>Patrimonio neto</Text>
+          <Text style={[styles.patrimonioValor, { color: patrimonioNeto >= 0 ? '#FFFFFF' : '#FCA5A5' }]}>
+            {formatMXN(patrimonioNeto)}
+          </Text>
+          <Text style={styles.patrimonioSub}>disponible + inversiones − deuda</Text>
+        </View>
 
-      {/* Métricas principales */}
-      <View style={styles.metricsGrid}>
-        <View style={[styles.metricCard, { borderLeftColor: '#10B981' }]}>
-          <Ionicons name="wallet-outline" size={18} color="#10B981" />
-          <Text style={styles.metricLabel}>Disponible</Text>
-          <Text style={[styles.metricValor, { color: '#10B981' }]}>{formatMXN(totalDisponible)}</Text>
-        </View>
-        <View style={[styles.metricCard, { borderLeftColor: '#EF4444' }]}>
-          <Ionicons name="card-outline" size={18} color="#EF4444" />
-          <Text style={styles.metricLabel}>Deuda total</Text>
-          <Text style={[styles.metricValor, { color: '#EF4444' }]}>{formatMXN(totalDeuda)}</Text>
-        </View>
-        <View style={[styles.metricCard, { borderLeftColor: '#F59E0B' }]}>
-          <Ionicons name="repeat-outline" size={18} color="#F59E0B" />
-          <Text style={styles.metricLabel}>Recurrentes</Text>
-          <Text style={[styles.metricValor, { color: '#F59E0B' }]}>{formatMXN(totalRecurrentes)}</Text>
-        </View>
-        <View style={[styles.metricCard, { borderLeftColor: '#6366F1' }]}>
-          <Ionicons name="trending-up-outline" size={18} color="#6366F1" />
-          <Text style={styles.metricLabel}>Inversiones</Text>
-          <Text style={[styles.metricValor, { color: '#6366F1' }]}>{formatMXN(totalInversiones)}</Text>
-        </View>
-      </View>
-
-      {/* Balance del mes */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Balance del mes</Text>
-        <View style={styles.balanceCard}>
-          <View style={styles.balanceRow}>
-            <Text style={styles.balanceLabel}>Disponible</Text>
-            <Text style={[styles.balanceValor, { color: '#10B981' }]}>{formatMXN(totalDisponible)}</Text>
+        {/* Métricas principales */}
+        <View style={styles.metricsGrid}>
+          <View style={[styles.metricCard, { borderLeftColor: '#10B981' }]}>
+            <Ionicons name="wallet-outline" size={18} color="#10B981" />
+            <Text style={styles.metricLabel}>Disponible</Text>
+            <Text style={[styles.metricValor, { color: '#10B981' }]}>{formatMXN(totalDisponible)}</Text>
           </View>
-          <View style={styles.balanceRow}>
-            <Text style={styles.balanceLabel}>Cuotas MSI este mes</Text>
-            <Text style={[styles.balanceValor, { color: '#EF4444' }]}>− {formatMXN(totalMSI)}</Text>
+          <View style={[styles.metricCard, { borderLeftColor: '#EF4444' }]}>
+            <Ionicons name="card-outline" size={18} color="#EF4444" />
+            <Text style={styles.metricLabel}>Deuda total</Text>
+            <Text style={[styles.metricValor, { color: '#EF4444' }]}>{formatMXN(totalDeuda)}</Text>
           </View>
-          <View style={styles.balanceRow}>
-            <Text style={styles.balanceLabel}>Recurrentes este mes</Text>
-            <Text style={[styles.balanceValor, { color: '#EF4444' }]}>− {formatMXN(totalRecurrentes)}</Text>
+          <View style={[styles.metricCard, { borderLeftColor: '#F59E0B' }]}>
+            <Ionicons name="repeat-outline" size={18} color="#F59E0B" />
+            <Text style={styles.metricLabel}>Recurrentes</Text>
+            <Text style={[styles.metricValor, { color: '#F59E0B' }]}>{formatMXN(totalRecurrentes)}</Text>
           </View>
-          <View style={[styles.balanceRow, styles.balanceTotalRow]}>
-            <Text style={styles.balanceTotalLabel}>Neto después de pagos</Text>
-            <Text style={[styles.balanceTotalValor, { color: neto >= 0 ? '#10B981' : '#EF4444' }]}>
-              {formatMXN(neto)}
-            </Text>
+          <View style={[styles.metricCard, { borderLeftColor: '#6366F1' }]}>
+            <Ionicons name="trending-up-outline" size={18} color="#6366F1" />
+            <Text style={styles.metricLabel}>Inversiones</Text>
+            <Text style={[styles.metricValor, { color: '#6366F1' }]}>{formatMXN(totalInversiones)}</Text>
           </View>
         </View>
-      </View>
 
-      {/* Cuentas de liquidez */}
-      {cuentasLiquidez.length > 0 && (
+        {/* Balance del mes */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Mis cuentas</Text>
-          {cuentasLiquidez.map(c => (
-            <View key={c.id} style={styles.cuentaRow}>
-              <View style={styles.cuentaIcon}>
-                <Ionicons name="wallet-outline" size={16} color="#6366F1" />
-              </View>
-              <Text style={styles.cuentaNombre}>{c.nombre}</Text>
-              <Text style={[styles.cuentaSaldo, { color: c.saldo >= 0 ? '#10B981' : '#EF4444' }]}>
-                {formatMXN(c.saldo)}
+          <Text style={styles.sectionTitle}>Balance del mes</Text>
+          <View style={styles.balanceCard}>
+            <View style={styles.balanceRow}>
+              <Text style={styles.balanceLabel}>Disponible</Text>
+              <Text style={[styles.balanceValor, { color: '#10B981' }]}>{formatMXN(totalDisponible)}</Text>
+            </View>
+            <View style={styles.balanceRow}>
+              <Text style={styles.balanceLabel}>Cuotas MSI este mes</Text>
+              <Text style={[styles.balanceValor, { color: '#EF4444' }]}>− {formatMXN(totalMSI)}</Text>
+            </View>
+            <View style={styles.balanceRow}>
+              <Text style={styles.balanceLabel}>Recurrentes este mes</Text>
+              <Text style={[styles.balanceValor, { color: '#EF4444' }]}>− {formatMXN(totalRecurrentes)}</Text>
+            </View>
+            <View style={[styles.balanceRow, styles.balanceTotalRow]}>
+              <Text style={styles.balanceTotalLabel}>Neto después de pagos</Text>
+              <Text style={[styles.balanceTotalValor, { color: neto >= 0 ? '#10B981' : '#EF4444' }]}>
+                {formatMXN(neto)}
               </Text>
             </View>
-          ))}
+          </View>
         </View>
-      )}
 
-      {/* Tarjetas */}
-      {tarjetas.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Tarjetas este corte</Text>
-          {tarjetas.map(t => {
-            const saldo = tarjetasSaldo[t.tarjeta_id] ?? 0;
-            const pct = t.limite_credito > 0 ? (saldo / t.limite_credito) * 100 : 0;
-            const color = pct > 70 ? '#EF4444' : pct > 40 ? '#F59E0B' : '#10B981';
-            return (
-              <View key={t.tarjeta_id} style={styles.tarjetaCard}>
-                <View style={styles.tarjetaHeader}>
-                  <View>
-                    <Text style={styles.tarjetaNombre}>{t.nombre}</Text>
-                    <Text style={styles.tarjetaBanco}>{t.banco}</Text>
-                  </View>
-                  <Text style={[styles.tarjetaSaldo, { color }]}>{formatMXN(saldo)}</Text>
+        {/* Cuentas de liquidez */}
+        {cuentasLiquidez.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Mis cuentas</Text>
+            {cuentasLiquidez.map(c => (
+              <View key={c.id} style={styles.cuentaRow}>
+                <View style={styles.cuentaIcon}>
+                  <Ionicons name="wallet-outline" size={16} color="#6366F1" />
                 </View>
-                <View style={styles.progressBg}>
-                  <View style={[styles.progressFill, { width: `${Math.min(pct, 100)}%`, backgroundColor: color }]} />
-                </View>
-                <Text style={styles.tarjetaLimite}>
-                  {formatMXN(t.limite_credito - saldo)} disponible · Corte día {t.dia_corte}
+                <Text style={styles.cuentaNombre}>{c.nombre}</Text>
+                <Text style={[styles.cuentaSaldo, { color: c.saldo >= 0 ? '#10B981' : '#EF4444' }]}>
+                  {formatMXN(c.saldo)}
                 </Text>
               </View>
-            );
-          })}
-        </View>
-      )}
+            ))}
+          </View>
+        )}
 
-      {tarjetas.length === 0 && cuentasLiquidez.length === 0 && (
-        <View style={styles.emptyState}>
-          <Ionicons name="wallet-outline" size={48} color="#D1D5DB" />
-          <Text style={styles.emptyTitle}>Todo listo</Text>
-          <Text style={styles.emptyText}>Agrega tus tarjetas y cuentas para ver tu resumen aquí</Text>
-        </View>
-      )}
+        {/* Tarjetas */}
+        {tarjetas.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Tarjetas este corte</Text>
+            {tarjetas.map(t => {
+              const saldo = tarjetasSaldo[t.tarjeta_id] ?? 0;
+              const pct = t.limite_credito > 0 ? (saldo / t.limite_credito) * 100 : 0;
+              const color = pct > 70 ? '#EF4444' : pct > 40 ? '#F59E0B' : '#10B981';
+              return (
+                <View key={t.tarjeta_id} style={styles.tarjetaCard}>
+                  <View style={styles.tarjetaHeader}>
+                    <View>
+                      <Text style={styles.tarjetaNombre}>{t.nombre}</Text>
+                      <Text style={styles.tarjetaBanco}>{t.banco}</Text>
+                    </View>
+                    <Text style={[styles.tarjetaSaldo, { color }]}>{formatMXN(saldo)}</Text>
+                  </View>
+                  <View style={styles.progressBg}>
+                    <View style={[styles.progressFill, { width: `${Math.min(pct, 100)}%`, backgroundColor: color }]} />
+                  </View>
+                  <Text style={styles.tarjetaLimite}>
+                    {formatMXN(t.limite_credito - saldo)} disponible · Corte día {t.dia_corte}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+        )}
 
-      <View style={{ height: 100 }} />
-    </ScrollView>
+        {tarjetas.length === 0 && cuentasLiquidez.length === 0 && (
+          <View style={styles.emptyState}>
+            <Ionicons name="wallet-outline" size={48} color="#D1D5DB" />
+            <Text style={styles.emptyTitle}>Todo listo</Text>
+            <Text style={styles.emptyText}>Agrega tus tarjetas y cuentas para ver tu resumen aquí</Text>
+          </View>
+        )}
 
-    <View style={styles.bottomBar}>
-      <TouchableOpacity style={styles.bottomBtn} onPress={() => {}}>
-        <Ionicons name="add-circle-outline" size={22} color="#FFFFFF" />
-        <Text style={styles.bottomBtnText}>Agregar gasto</Text>
-      </TouchableOpacity>
+        <View style={{ height: 100 }} />
+      </ScrollView>
+
+      <View style={styles.bottomBar}>
+        <TouchableOpacity style={styles.bottomBtn} onPress={() => setModalGasto(true)}>
+          <Ionicons name="add-circle-outline" size={22} color="#FFFFFF" />
+          <Text style={styles.bottomBtnText}>Agregar gasto</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
+  scrollView: { flex: 1 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   loadingText: { color: '#6B7280', fontSize: 16 },
   header: { padding: 20, paddingTop: 60, backgroundColor: '#FFFFFF', borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB' },
@@ -239,7 +242,7 @@ const styles = StyleSheet.create({
   headerDate: { fontSize: 14, color: '#6B7280', marginTop: 2, textTransform: 'capitalize' },
   patrimonioCard: { margin: 16, backgroundColor: '#4F46E5', borderRadius: 16, padding: 20, alignItems: 'center' },
   patrimonioLabel: { fontSize: 13, color: '#C7D2FE', marginBottom: 4 },
-  patrimonioValor: { fontSize: 32, fontWeight: '700', color: '#FFFFFF' },
+  patrimonioValor: { fontSize: 32, fontWeight: '700' },
   patrimonioSub: { fontSize: 11, color: '#A5B4FC', marginTop: 4 },
   metricsGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12, gap: 8, marginBottom: 8 },
   metricCard: { flex: 1, minWidth: '45%', backgroundColor: '#FFFFFF', borderRadius: 12, padding: 14, borderLeftWidth: 3, gap: 4 },

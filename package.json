@@ -7,6 +7,7 @@
     "@react-navigation/bottom-tabs": "^7.18.3",
     "@react-navigation/native": "^7.3.4",
     "expo": "~56.0.12",
+    "expo-asset": "~56.0.17",
     "expo-file-system": "~56.0.8",
     "expo-router": "~56.2.11",
     "expo-sqlite": "~56.0.5",

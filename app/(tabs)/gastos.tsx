@@ -6,9 +6,10 @@ import {
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { crearGasto, obtenerGastos, eliminarGasto, crearCompra, obtenerCompras, eliminarCompra, obtenerCuotasPendientesMes, marcarCuotaPagada } from '../../database/queries/gastos';
-import { obtenerTarjetas } from '../../database/queries/tarjetas';
-import { obtenerCuentasLiquidez } from '../../database/queries/liquidez';
+import { crearGasto, obtenerGastos, eliminarGasto, actualizarGasto, crearCompra, obtenerCompras, eliminarCompra, obtenerCuotasPendientesMes, marcarCuotaPagada } from '../../database/queries/gastos';
+import { obtenerTarjetas, abonarSaldoTarjeta } from '../../database/queries/tarjetas';
+import { obtenerCuentasLiquidez, crearMovimiento } from '../../database/queries/liquidez';
+import { obtenerCuentasInversion, transferirCuentaAInversion } from '../../database/queries/inversiones';
 import { formatMXN, hoy } from '../../database';
 import { Gasto, Compra, TarjetaConVersion, CuentaLiquidez } from '../../types';
 import Header from '../../components/Header';
@@ -23,15 +24,21 @@ export default function GastosScreen() {
   const [cuotas, setCuotas] = useState<any[]>([]);
   const [tarjetas, setTarjetas] = useState<TarjetaConVersion[]>([]);
   const [cuentas, setCuentas] = useState<CuentaLiquidez[]>([]);
+  const [inversiones, setInversiones] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [modalGasto, setModalGasto] = useState(false);
   const [modalMSI, setModalMSI] = useState(false);
-  const [usaTarjeta, setUsaTarjeta] = useState(true);
+  const [modalEditarGasto, setModalEditarGasto] = useState(false);
+  const [editandoGasto, setEditandoGasto] = useState<Gasto | null>(null);
+  const [formEditar, setFormEditar] = useState({ descripcion: '', monto: '', fecha: hoy(), categoria: 'Alimentación', notas: '' });
+  const [tipoGasto, setTipoGasto] = useState<'tarjeta' | 'cuenta' | 'pago_tarjeta' | 'a_inversion'>('tarjeta');
 
   const [formGasto, setFormGasto] = useState({
     descripcion: '', monto: '', fecha: hoy(),
     categoria: 'Alimentación', notas: '',
     tarjeta_version_id: '', cuenta_liquidez_id: '',
+    pago_tarjeta_id: '', pago_cuenta_id: '',
+    inv_inversion_id: '',
   });
 
   const [formMSI, setFormMSI] = useState({
@@ -43,20 +50,23 @@ export default function GastosScreen() {
   const cargarDatos = async () => {
     try {
       const hoyDate = new Date();
-      const [g, c, t, cu, cuotas] = await Promise.all([
+      const [g, c, t, cu, inv, cuotas] = await Promise.all([
         obtenerGastos(),
         obtenerCompras(),
         obtenerTarjetas(),
         obtenerCuentasLiquidez(),
+        obtenerCuentasInversion(),
         obtenerCuotasPendientesMes(hoyDate.getFullYear(), hoyDate.getMonth() + 1),
       ]);
       setGastos(g);
       setCompras(c);
       setTarjetas(t);
       setCuentas(cu);
+      setInversiones(inv);
       setCuotas(cuotas);
     } catch (e) {
-      console.error(e);
+      console.error('[gastos ERROR]', e);
+      Alert.alert('Error cargando gastos', String(e));
     } finally {
       setRefreshing(false);
     }
@@ -65,22 +75,45 @@ export default function GastosScreen() {
   useFocusEffect(useCallback(() => { cargarDatos(); }, []));
 
   const guardarGasto = async () => {
-    if (!formGasto.descripcion || !formGasto.monto) {
-      Alert.alert('Campos requeridos', 'Descripción y monto son obligatorios.');
+    const monto = parseFloat(formGasto.monto);
+    if (!formGasto.monto || isNaN(monto) || monto <= 0) {
+      Alert.alert('Monto requerido');
       return;
     }
     try {
-      await crearGasto({
-        descripcion: formGasto.descripcion,
-        monto: parseFloat(formGasto.monto),
-        fecha: formGasto.fecha,
-        categoria: formGasto.categoria,
-        notas: formGasto.notas,
-        tarjeta_version_id: usaTarjeta ? formGasto.tarjeta_version_id || undefined : undefined,
-        cuenta_liquidez_id: !usaTarjeta ? formGasto.cuenta_liquidez_id || undefined : undefined,
-      });
+      if (tipoGasto === 'tarjeta') {
+        if (!formGasto.tarjeta_version_id) { Alert.alert('Selecciona una tarjeta'); return; }
+        await crearGasto({
+          descripcion: formGasto.descripcion || 'Gasto',
+          monto, fecha: formGasto.fecha, categoria: formGasto.categoria,
+          notas: formGasto.notas, tarjeta_version_id: formGasto.tarjeta_version_id,
+        });
+      } else if (tipoGasto === 'cuenta') {
+        if (!formGasto.cuenta_liquidez_id) { Alert.alert('Selecciona una cuenta'); return; }
+        await crearGasto({
+          descripcion: formGasto.descripcion || 'Gasto',
+          monto, fecha: formGasto.fecha, categoria: formGasto.categoria,
+          notas: formGasto.notas, cuenta_liquidez_id: formGasto.cuenta_liquidez_id,
+        });
+      } else if (tipoGasto === 'pago_tarjeta') {
+        if (!formGasto.pago_tarjeta_id || !formGasto.pago_cuenta_id) {
+          Alert.alert('Selecciona tarjeta y cuenta origen'); return;
+        }
+        await crearMovimiento({
+          cuenta_id: formGasto.pago_cuenta_id, tipo: 'gasto', monto,
+          fecha: formGasto.fecha,
+          descripcion: formGasto.descripcion || 'Pago a tarjeta',
+          categoria: 'Tarjeta',
+        });
+        await abonarSaldoTarjeta(formGasto.pago_tarjeta_id, monto);
+      } else if (tipoGasto === 'a_inversion') {
+        if (!formGasto.cuenta_liquidez_id || !formGasto.inv_inversion_id) {
+          Alert.alert('Selecciona cuenta e inversión'); return;
+        }
+        await transferirCuentaAInversion(formGasto.cuenta_liquidez_id, formGasto.inv_inversion_id, monto, formGasto.descripcion || undefined);
+      }
       setModalGasto(false);
-      setFormGasto({ descripcion: '', monto: '', fecha: hoy(), categoria: 'Alimentación', notas: '', tarjeta_version_id: '', cuenta_liquidez_id: '' });
+      setFormGasto({ descripcion: '', monto: '', fecha: hoy(), categoria: 'Alimentación', notas: '', tarjeta_version_id: '', cuenta_liquidez_id: '', pago_tarjeta_id: '', pago_cuenta_id: '', inv_inversion_id: '' });
       cargarDatos();
     } catch (e) {
       Alert.alert('Error', String(e));
@@ -105,6 +138,26 @@ export default function GastosScreen() {
       });
       setModalMSI(false);
       setFormMSI({ descripcion: '', monto_total: '', meses: '3', fecha_compra: hoy(), categoria: 'Tecnología', tarjeta_version_id: '', origen: 'tarjeta', notas: '' });
+      cargarDatos();
+    } catch (e) {
+      Alert.alert('Error', String(e));
+    }
+  };
+
+  const abrirEditarGasto = (g: Gasto) => {
+    setEditandoGasto(g);
+    setFormEditar({ descripcion: g.descripcion, monto: String(g.monto), fecha: g.fecha, categoria: g.categoria ?? 'Alimentación', notas: g.notas ?? '' });
+    setModalEditarGasto(true);
+  };
+
+  const guardarEdicion = async () => {
+    if (!editandoGasto) return;
+    const monto = parseFloat(formEditar.monto);
+    if (isNaN(monto) || monto <= 0) { Alert.alert('Monto inválido'); return; }
+    try {
+      await actualizarGasto(editandoGasto.id, { descripcion: formEditar.descripcion, monto, fecha: formEditar.fecha, categoria: formEditar.categoria, notas: formEditar.notas });
+      setModalEditarGasto(false);
+      setEditandoGasto(null);
       cargarDatos();
     } catch (e) {
       Alert.alert('Error', String(e));
@@ -166,9 +219,14 @@ export default function GastosScreen() {
                   </View>
                   <View style={styles.itemRight}>
                     <Text style={styles.itemMonto}>{formatMXN(g.monto)}</Text>
-                    <TouchableOpacity onPress={() => borrarGasto(g.id)}>
-                      <Ionicons name="trash-outline" size={14} color="#EF4444" />
-                    </TouchableOpacity>
+                    <View style={{ flexDirection: 'row', gap: 10 }}>
+                      <TouchableOpacity onPress={() => abrirEditarGasto(g)}>
+                        <Ionicons name="pencil-outline" size={14} color="#6366F1" />
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => borrarGasto(g.id)}>
+                        <Ionicons name="trash-outline" size={14} color="#EF4444" />
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 </View>
               );
@@ -283,25 +341,39 @@ export default function GastosScreen() {
               <TextInput style={styles.input} placeholder="YYYY-MM-DD" placeholderTextColor="#9CA3AF" value={formGasto.fecha} onChangeText={v => setFormGasto(p => ({ ...p, fecha: v }))} />
             </View>
             <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>¿Con tarjeta de crédito?</Text>
-              <View style={styles.toggleRow}>
-                {(['Sí', 'No'] as const).map((op, i) => (
-                  <TouchableOpacity key={op} style={[styles.toggleBtn, (i === 0 ? usaTarjeta : !usaTarjeta) && styles.toggleBtnActive]} onPress={() => setUsaTarjeta(i === 0)}>
-                    <Text style={[styles.toggleText, (i === 0 ? usaTarjeta : !usaTarjeta) && styles.toggleTextActive]}>{op}</Text>
+              <Text style={styles.formLabel}>Tipo</Text>
+              <View style={{ gap: 8 }}>
+                <View style={styles.toggleRow}>
+                  <TouchableOpacity style={[styles.toggleBtn, tipoGasto === 'tarjeta' && styles.toggleBtnActive]} onPress={() => setTipoGasto('tarjeta')}>
+                    <Text style={[styles.toggleText, tipoGasto === 'tarjeta' && styles.toggleTextActive]}>Tarjeta</Text>
                   </TouchableOpacity>
-                ))}
+                  <TouchableOpacity style={[styles.toggleBtn, tipoGasto === 'cuenta' && styles.toggleBtnActive]} onPress={() => setTipoGasto('cuenta')}>
+                    <Text style={[styles.toggleText, tipoGasto === 'cuenta' && styles.toggleTextActive]}>Cuenta</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.toggleRow}>
+                  <TouchableOpacity style={[styles.toggleBtn, tipoGasto === 'pago_tarjeta' && styles.toggleBtnActive]} onPress={() => setTipoGasto('pago_tarjeta')}>
+                    <Text style={[styles.toggleText, tipoGasto === 'pago_tarjeta' && styles.toggleTextActive]}>Pago tarjeta</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.toggleBtn, tipoGasto === 'a_inversion' && styles.toggleBtnActive]} onPress={() => setTipoGasto('a_inversion')}>
+                    <Text style={[styles.toggleText, tipoGasto === 'a_inversion' && styles.toggleTextActive]}>A inversión</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
-            {usaTarjeta ? (
+
+            {tipoGasto === 'tarjeta' && (
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Tarjeta</Text>
+                <Text style={styles.formLabel}>Tarjeta de crédito</Text>
                 {tarjetas.map(t => (
                   <TouchableOpacity key={t.id} style={[styles.selectorItem, formGasto.tarjeta_version_id === t.id && styles.selectorItemActive]} onPress={() => setFormGasto(p => ({ ...p, tarjeta_version_id: t.id }))}>
                     <Text style={styles.selectorText}>{t.nombre} — {t.banco}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
-            ) : (
+            )}
+
+            {tipoGasto === 'cuenta' && (
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Cuenta</Text>
                 {cuentas.map(c => (
@@ -310,6 +382,48 @@ export default function GastosScreen() {
                   </TouchableOpacity>
                 ))}
               </View>
+            )}
+
+            {tipoGasto === 'pago_tarjeta' && (
+              <>
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Tarjeta a pagar</Text>
+                  {tarjetas.map(t => (
+                    <TouchableOpacity key={t.id} style={[styles.selectorItem, formGasto.pago_tarjeta_id === t.tarjeta_id && styles.selectorItemActive]} onPress={() => setFormGasto(p => ({ ...p, pago_tarjeta_id: t.tarjeta_id }))}>
+                      <Text style={styles.selectorText}>{t.nombre} — {t.banco}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Cuenta origen</Text>
+                  {cuentas.map(c => (
+                    <TouchableOpacity key={c.id} style={[styles.selectorItem, formGasto.pago_cuenta_id === c.id && styles.selectorItemActive]} onPress={() => setFormGasto(p => ({ ...p, pago_cuenta_id: c.id }))}>
+                      <Text style={styles.selectorText}>{c.nombre}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </>
+            )}
+
+            {tipoGasto === 'a_inversion' && (
+              <>
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Cuenta origen</Text>
+                  {cuentas.map(c => (
+                    <TouchableOpacity key={c.id} style={[styles.selectorItem, formGasto.cuenta_liquidez_id === c.id && styles.selectorItemActive]} onPress={() => setFormGasto(p => ({ ...p, cuenta_liquidez_id: c.id }))}>
+                      <Text style={styles.selectorText}>{c.nombre}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Inversión destino</Text>
+                  {inversiones.map((inv: any) => (
+                    <TouchableOpacity key={inv.id} style={[styles.selectorItem, formGasto.inv_inversion_id === inv.id && styles.selectorItemActive]} onPress={() => setFormGasto(p => ({ ...p, inv_inversion_id: inv.id }))}>
+                      <Text style={styles.selectorText}>{inv.nombre} — {inv.institucion}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </>
             )}
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Categoría</Text>
@@ -323,6 +437,46 @@ export default function GastosScreen() {
             </View>
             <TouchableOpacity style={styles.saveBtn} onPress={guardarGasto}>
               <Text style={styles.saveBtnText}>Guardar gasto</Text>
+            </TouchableOpacity>
+            <View style={{ height: 40 }} />
+          </ScrollView>
+        </View>
+      </Modal>
+
+      {/* Modal editar gasto */}
+      <Modal visible={modalEditarGasto} animationType="slide" presentationStyle="pageSheet">
+        <View style={styles.modal}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Editar gasto</Text>
+            <TouchableOpacity onPress={() => setModalEditarGasto(false)}>
+              <Ionicons name="close" size={24} color="#6B7280" />
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={styles.modalBody}>
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Descripción</Text>
+              <TextInput style={styles.input} placeholder="Super, gasolina..." placeholderTextColor="#9CA3AF" value={formEditar.descripcion} onChangeText={v => setFormEditar(p => ({ ...p, descripcion: v }))} />
+            </View>
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Monto ($)</Text>
+              <TextInput style={styles.input} placeholder="0.00" placeholderTextColor="#9CA3AF" keyboardType="decimal-pad" value={formEditar.monto} onChangeText={v => setFormEditar(p => ({ ...p, monto: v }))} />
+            </View>
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Fecha</Text>
+              <TextInput style={styles.input} placeholder="YYYY-MM-DD" placeholderTextColor="#9CA3AF" value={formEditar.fecha} onChangeText={v => setFormEditar(p => ({ ...p, fecha: v }))} />
+            </View>
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Categoría</Text>
+              <View style={styles.chipsRow}>
+                {CATEGORIAS.map(cat => (
+                  <TouchableOpacity key={cat} style={[styles.chip, formEditar.categoria === cat && styles.chipActive]} onPress={() => setFormEditar(p => ({ ...p, categoria: cat }))}>
+                    <Text style={[styles.chipText, formEditar.categoria === cat && styles.chipTextActive]}>{cat}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+            <TouchableOpacity style={styles.saveBtn} onPress={guardarEdicion}>
+              <Text style={styles.saveBtnText}>Guardar cambios</Text>
             </TouchableOpacity>
             <View style={{ height: 40 }} />
           </ScrollView>

@@ -86,6 +86,17 @@ export async function eliminarGasto(id: string): Promise<void> {
   await db.runAsync('DELETE FROM gasto WHERE id = ?', [id]);
 }
 
+export async function actualizarGasto(
+  id: string,
+  cambios: { descripcion?: string; monto?: number; fecha?: string; categoria?: string; notas?: string }
+): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync(
+    `UPDATE gasto SET descripcion = ?, monto = ?, fecha = ?, categoria = ?, notas = ? WHERE id = ?`,
+    [cambios.descripcion ?? null, cambios.monto ?? null, cambios.fecha ?? null, cambios.categoria ?? null, cambios.notas ?? null, id]
+  );
+}
+
 // ─────────────────────────────────────────
 // COMPRAS A MSI
 // ─────────────────────────────────────────
@@ -107,6 +118,10 @@ export async function crearCompra(
 
   await generarCuotas(id, compra.monto_total, compra.meses, compra.fecha_compra);
 
+  if (compra.tarjeta_version_id) {
+    await actualizarSaldoPeriodo(compra.tarjeta_version_id, compra.monto_total, compra.fecha_compra);
+  }
+
   return id;
 }
 
@@ -121,7 +136,7 @@ async function generarCuotas(
 
   for (let i = 0; i < meses; i++) {
     const fecha = new Date(fechaCompra);
-    fecha.setMonth(fecha.getMonth() + i + 1);
+    fecha.setMonth(fecha.getMonth() + i);
     const fechaStr = fecha.toISOString().slice(0, 10);
 
     await db.runAsync(
@@ -170,6 +185,12 @@ export async function obtenerCuotasPendientesMes(
   const db = await getDatabase();
   const fechaInicio = `${anio}-${String(mes).padStart(2, '0')}-01`;
   const fechaFin = `${anio}-${String(mes).padStart(2, '0')}-31`;
+  console.log('[obtenerCuotasPendientesMes] buscando entre', fechaInicio, 'y', fechaFin);
+
+  const todas = await db.getAllAsync<{ fecha_esperada: string; estado: string }>(
+    'SELECT fecha_esperada, estado FROM cuota_mensual ORDER BY fecha_esperada ASC'
+  );
+  console.log('[obtenerCuotasPendientesMes] todas las cuotas en DB:', JSON.stringify(todas));
 
   return await db.getAllAsync(
     `SELECT cm.*, c.descripcion as descripcion_compra

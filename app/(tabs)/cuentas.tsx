@@ -9,7 +9,8 @@ import { Ionicons } from '@expo/vector-icons';
 import {
   obtenerCuentasLiquidez, crearCuentaLiquidez,
   actualizarCuentaLiquidez, eliminarCuentaLiquidez,
-  obtenerSaldoCuenta, crearMovimiento, obtenerMovimientos
+  obtenerSaldoCuenta, crearMovimiento, obtenerMovimientos,
+  eliminarMovimiento
 } from '../../database/queries/liquidez';
 import {
   obtenerCuentasInversion,
@@ -45,6 +46,7 @@ export default function CuentasScreen() {
   const [saldos, setSaldos] = useState<Record<string, number>>({});
   const [movimientos, setMovimientos] = useState<Record<string, MovimientoLiquidez[]>>({});
   const [expandida, setExpandida] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [modalCuenta, setModalCuenta] = useState(false);
   const [modalMovimiento, setModalMovimiento] = useState(false);
@@ -73,8 +75,10 @@ export default function CuentasScreen() {
       setSaldos(saldosMap);
       setMovimientos(movsMap);
     } catch (e) {
-      console.error(e);
+      console.error('[cuentas ERROR]', e);
+      Alert.alert('Error cargando cuentas', String(e));
     } finally {
+      setLoading(false);
       setRefreshing(false);
     }
   };
@@ -112,6 +116,13 @@ export default function CuentasScreen() {
       console.error('guardarCuenta error:', e);
       Alert.alert('Error', 'No se pudo guardar la cuenta.');
     }
+  };
+
+  const eliminarMov = (id: string) => {
+    Alert.alert('Eliminar movimiento', '¿Eliminar este movimiento?', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Eliminar', style: 'destructive', onPress: async () => { await eliminarMovimiento(id); cargarDatos(); } },
+    ]);
   };
 
   const eliminar = (id: string, nombre: string) => {
@@ -181,6 +192,14 @@ export default function CuentasScreen() {
   };
 
   const totalDisponible = Object.values(saldos).reduce((s, v) => s + v, 0);
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={{ color: '#6B7280', fontSize: 16 }}>Cargando...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -267,9 +286,14 @@ export default function CuentasScreen() {
                               <Text style={styles.movFecha}>{m.fecha} · {m.categoria}</Text>
                             </View>
                           </View>
-                          <Text style={[styles.movMonto, { color: m.tipo === 'ingreso' ? '#10B981' : '#EF4444' }]}>
-                            {m.tipo === 'ingreso' ? '+' : '−'}{formatMXN(m.monto)}
-                          </Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                            <Text style={[styles.movMonto, { color: m.tipo === 'ingreso' ? '#10B981' : '#EF4444' }]}>
+                              {m.tipo === 'ingreso' ? '+' : '−'}{formatMXN(m.monto)}
+                            </Text>
+                            <TouchableOpacity onPress={() => eliminarMov(m.id)}>
+                              <Ionicons name="trash-outline" size={14} color="#EF4444" />
+                            </TouchableOpacity>
+                          </View>
                         </View>
                       ))}
                     </View>

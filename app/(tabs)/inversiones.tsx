@@ -9,7 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import {
   obtenerCuentasInversion, crearCuentaInversion,
   calcularRendimientoHoy, registrarMovimientoInversion,
-  eliminarCuentaInversion, actualizarTasaInversion,
+  eliminarCuentaInversion, eliminarMovimientoInversion, actualizarTasaInversion,
   obtenerMovimientosInversion, transferirCuentaAInversion,
   transferirInversionACuenta
 } from '../../database/queries/inversiones';
@@ -61,7 +61,8 @@ export default function InversionesScreen() {
       setRendimientos(rends);
       setMovimientos(movs);
     } catch (e) {
-      console.error(e);
+      console.error('[inversiones ERROR]', e);
+      Alert.alert('Error cargando inversiones', String(e));
     } finally {
       setRefreshing(false);
     }
@@ -148,6 +149,13 @@ export default function InversionesScreen() {
     } catch (e) {
       Alert.alert('Error', String(e));
     }
+  };
+
+  const eliminarMov = (id: string) => {
+    Alert.alert('Eliminar movimiento', '¿Eliminar este movimiento?', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Eliminar', style: 'destructive', onPress: async () => { await eliminarMovimientoInversion(id); cargarDatos(); } },
+    ]);
   };
 
   const eliminar = (id: string, nombre: string) => {
@@ -272,9 +280,14 @@ export default function InversionesScreen() {
                             <Text style={styles.movTipo}>{m.tipo}</Text>
                             <Text style={styles.movFecha}>{m.fecha}</Text>
                           </View>
-                          <Text style={[styles.movMonto, { color: m.tipo === 'retiro' ? '#EF4444' : '#10B981' }]}>
-                            {m.tipo === 'retiro' ? '−' : '+'}{formatMXN(m.monto)}
-                          </Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                            <Text style={[styles.movMonto, { color: m.tipo === 'retiro' ? '#EF4444' : '#10B981' }]}>
+                              {m.tipo === 'retiro' ? '−' : '+'}{formatMXN(m.monto)}
+                            </Text>
+                            <TouchableOpacity onPress={() => eliminarMov(m.id)}>
+                              <Ionicons name="trash-outline" size={12} color="#EF4444" />
+                            </TouchableOpacity>
+                          </View>
                         </View>
                       ))}
                     </View>

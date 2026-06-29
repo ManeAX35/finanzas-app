@@ -126,6 +126,7 @@ export interface GastoRecurrenteVersion {
   id: string;
   recurrente_id: string;
   tarjeta_version_id?: string;
+  cuenta_liquidez_id?: string;
   nombre: string;
   monto: number;
   dia_cobro: number;

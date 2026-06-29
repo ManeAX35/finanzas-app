@@ -254,6 +254,11 @@ export async function tomarRendimientoSnapshot(
   );
 }
 
+export async function eliminarMovimientoInversion(id: string): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync('DELETE FROM movimiento_inversion WHERE id = ?', [id]);
+}
+
 export async function eliminarCuentaInversion(cuentaId: string): Promise<void> {
   const db = await getDatabase();
   await db.runAsync(

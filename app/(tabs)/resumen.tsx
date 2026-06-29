@@ -5,17 +5,31 @@ import {
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { obtenerTarjetas, obtenerPeriodoActual } from '../../database/queries/tarjetas';
+import { obtenerTarjetas, obtenerPeriodoActual, obtenerPeriodoCerradoPendiente, marcarPeriodoPagado, abonarSaldoTarjeta } from '../../database/queries/tarjetas';
 import { obtenerTotalDisponible, obtenerSaldosTodos, crearMovimiento } from '../../database/queries/liquidez';
-import { obtenerCuentasInversion, calcularRendimientoHoy } from '../../database/queries/inversiones';
+import { obtenerCuentasInversion, calcularRendimientoHoy, transferirCuentaAInversion, transferirInversionACuenta } from '../../database/queries/inversiones';
 import { obtenerRecurrentes } from '../../database/queries/recurrentes';
-import { obtenerCuotasPendientesMes, crearGasto } from '../../database/queries/gastos';
+import { obtenerCuotasPendientesMes, crearGasto, obtenerGastosPorMes } from '../../database/queries/gastos';
 import { obtenerCuentasLiquidez } from '../../database/queries/liquidez';
 import { formatMXN, hoy } from '../../database';
-import { TarjetaConVersion, CuentaLiquidez } from '../../types';
+import { TarjetaConVersion, CuentaLiquidez, PeriodoCorte } from '../../types';
 import Header from '../../components/Header';
 
-const CATEGORIAS_GASTO = ['Alimentación', 'Transporte', 'Salud', 'Entretenimiento', 'Ropa', 'Hogar', 'Tecnología', 'Educación', 'Viaje', 'Otro'];
+type PagoPendiente = {
+  tarjeta: TarjetaConVersion;
+  periodoAbierto: PeriodoCorte | null;
+  periodoCerrado: PeriodoCorte | null;
+};
+
+type PagoRModal = { periodoId: string; tarjetaId: string; nombre: string; saldo: number };
+
+const MESES_CORTOS = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+function fmtDDMM(iso: string) {
+  const p = iso.split('-');
+  return `${parseInt(p[2])} ${MESES_CORTOS[parseInt(p[1]) - 1]}`;
+}
+
+const CATEGORIAS_GASTO =['Alimentación', 'Transporte', 'Salud', 'Entretenimiento', 'Ropa', 'Hogar', 'Tecnología', 'Educación', 'Viaje', 'Otro'];
 const CATEGORIAS_INGRESO = ['Sueldo', 'Freelance', 'Venta', 'Reembolso', 'Transferencia', 'Otro'];
 
 export default function ResumenScreen() {
@@ -26,23 +40,33 @@ export default function ResumenScreen() {
   const [totalRecurrentes, setTotalRecurrentes] = useState(0);
   const [totalMSI, setTotalMSI] = useState(0);
   const [totalInversiones, setTotalInversiones] = useState(0);
+  const [totalGastosMes, setTotalGastosMes] = useState(0);
+  const [totalGastosTarjetaMes, setTotalGastosTarjetaMes] = useState(0);
   const [cuentasLiquidez, setCuentasLiquidez] = useState<{ id: string; nombre: string; saldo: number }[]>([]);
   const [tarjetas, setTarjetas] = useState<TarjetaConVersion[]>([]);
   const [tarjetasSaldo, setTarjetasSaldo] = useState<Record<string, number>>({});
   const [cuentas, setCuentas] = useState<CuentaLiquidez[]>([]);
+  const [pagosPendientes, setPagosPendientes] = useState<PagoPendiente[]>([]);
+  const [pagoRModal, setPagoRModal] = useState<PagoRModal | null>(null);
+  const [pagoRMonto, setPagoRMonto] = useState('');
+  const [pagoRCuentaId, setPagoRCuentaId] = useState<string | null>(null);
 
+  const [inversiones, setInversiones] = useState<any[]>([]);
   const [modalGasto, setModalGasto] = useState(false);
   const [modalIngreso, setModalIngreso] = useState(false);
-  const [usaTarjeta, setUsaTarjeta] = useState(true);
+  const [tipoGasto, setTipoGasto] = useState<'tarjeta' | 'cuenta' | 'pago_tarjeta' | 'a_inversion'>('tarjeta');
+  const [tipoIngreso, setTipoIngreso] = useState<'cuenta' | 'desde_inversion'>('cuenta');
 
   const [formGasto, setFormGasto] = useState({
-    descripcion: '', monto: '', fecha: hoy(),
-    categoria: 'Alimentación', tarjeta_version_id: '', cuenta_liquidez_id: '',
+    descripcion: '', monto: '', fecha: hoy(), categoria: 'Alimentación',
+    tarjeta_version_id: '', cuenta_liquidez_id: '',
+    pago_tarjeta_id: '', pago_cuenta_id: '',
+    inv_cuenta_id: '', inv_inversion_id: '',
   });
 
   const [formIngreso, setFormIngreso] = useState({
-    monto: '', descripcion: '', categoria: 'Sueldo',
-    fecha: hoy(), cuenta_id: '',
+    monto: '', descripcion: '', categoria: 'Sueldo', fecha: hoy(),
+    cuenta_id: '', inv_id: '', inv_destino_cuenta_id: '',
   });
 
   const cargarDatos = async () => {
@@ -51,7 +75,7 @@ export default function ResumenScreen() {
       const anio = hoyDate.getFullYear();
       const mes = hoyDate.getMonth() + 1;
 
-      const [disponible, saldos, tarjetasList, recurrentes, cuotas, inversiones, cuentasList] =
+      const [disponible, saldos, tarjetasList, recurrentes, cuotas, invList, cuentasList, gastosMes] =
         await Promise.all([
           obtenerTotalDisponible(),
           obtenerSaldosTodos(),
@@ -60,12 +84,16 @@ export default function ResumenScreen() {
           obtenerCuotasPendientesMes(anio, mes),
           obtenerCuentasInversion(),
           obtenerCuentasLiquidez(),
+          obtenerGastosPorMes(anio, mes),
         ]);
 
       setTotalDisponible(disponible);
       setCuentasLiquidez(saldos);
       setTarjetas(tarjetasList);
       setCuentas(cuentasList);
+      setInversiones(invList);
+      setTotalGastosMes(gastosMes.filter(g => g.cuenta_liquidez_id).reduce((s, g) => s + g.monto, 0));
+      setTotalGastosTarjetaMes(gastosMes.filter(g => g.tarjeta_version_id).reduce((s, g) => s + g.monto, 0));
 
       const saldosMap: Record<string, number> = {};
       for (const t of tarjetasList) {
@@ -73,6 +101,16 @@ export default function ResumenScreen() {
         saldosMap[t.tarjeta_id] = periodo?.saldo_calculado ?? 0;
       }
       setTarjetasSaldo(saldosMap);
+
+      const pendientes: PagoPendiente[] = [];
+      for (const t of tarjetasList) {
+        const [pa, pc] = await Promise.all([
+          obtenerPeriodoActual(t.tarjeta_id),
+          obtenerPeriodoCerradoPendiente(t.tarjeta_id),
+        ]);
+        if (pa || pc) pendientes.push({ tarjeta: t, periodoAbierto: pa, periodoCerrado: pc });
+      }
+      setPagosPendientes(pendientes);
 
       const deudaTotal = Object.values(saldosMap).reduce((s, v) => s + v, 0);
       setTotalDeuda(deudaTotal);
@@ -86,7 +124,7 @@ export default function ResumenScreen() {
       setTotalMSI(msiTotal);
 
       let invTotal = 0;
-      for (const inv of inversiones) {
+      for (const inv of invList) {
         const { saldoReal } = await calcularRendimientoHoy(inv.id);
         invTotal += saldoReal;
       }
@@ -105,51 +143,127 @@ export default function ResumenScreen() {
 
   const onRefresh = () => { setRefreshing(true); cargarDatos(); };
 
+  const resetFormGasto = () => setFormGasto({
+    descripcion: '', monto: '', fecha: hoy(), categoria: 'Alimentación',
+    tarjeta_version_id: '', cuenta_liquidez_id: '',
+    pago_tarjeta_id: '', pago_cuenta_id: '',
+    inv_cuenta_id: '', inv_inversion_id: '',
+  });
+
   const guardarGasto = async () => {
-    if (!formGasto.descripcion || !formGasto.monto) {
-      Alert.alert('Campos requeridos', 'Descripción y monto son obligatorios.');
+    const monto = parseFloat(formGasto.monto);
+    if (!formGasto.monto || isNaN(monto) || monto <= 0) {
+      Alert.alert('Monto requerido');
       return;
     }
     try {
-      await crearGasto({
-        descripcion: formGasto.descripcion,
-        monto: parseFloat(formGasto.monto),
-        fecha: formGasto.fecha,
-        categoria: formGasto.categoria,
-        tarjeta_version_id: usaTarjeta ? formGasto.tarjeta_version_id || undefined : undefined,
-        cuenta_liquidez_id: !usaTarjeta ? formGasto.cuenta_liquidez_id || undefined : undefined,
-      });
+      if (tipoGasto === 'tarjeta') {
+        if (!formGasto.tarjeta_version_id) { Alert.alert('Selecciona una tarjeta'); return; }
+        await crearGasto({
+          descripcion: formGasto.descripcion || 'Gasto',
+          monto, fecha: formGasto.fecha, categoria: formGasto.categoria,
+          tarjeta_version_id: formGasto.tarjeta_version_id,
+        });
+      } else if (tipoGasto === 'cuenta') {
+        if (!formGasto.cuenta_liquidez_id || formGasto.cuenta_liquidez_id === '') { Alert.alert('Selecciona una cuenta'); return; }
+        await crearGasto({
+          descripcion: formGasto.descripcion || 'Gasto',
+          monto, fecha: formGasto.fecha, categoria: formGasto.categoria,
+          cuenta_liquidez_id: formGasto.cuenta_liquidez_id,
+        });
+      } else if (tipoGasto === 'pago_tarjeta') {
+        if (!formGasto.pago_tarjeta_id || !formGasto.pago_cuenta_id) {
+          Alert.alert('Selecciona tarjeta y cuenta origen'); return;
+        }
+        await crearMovimiento({
+          cuenta_id: formGasto.pago_cuenta_id, tipo: 'gasto', monto,
+          fecha: formGasto.fecha,
+          descripcion: formGasto.descripcion || 'Pago a tarjeta',
+          categoria: 'Tarjeta',
+        });
+        await abonarSaldoTarjeta(formGasto.pago_tarjeta_id, monto);
+      } else if (tipoGasto === 'a_inversion') {
+        if (!formGasto.inv_cuenta_id || !formGasto.inv_inversion_id) {
+          Alert.alert('Selecciona cuenta e inversión'); return;
+        }
+        await transferirCuentaAInversion(
+          formGasto.inv_cuenta_id, formGasto.inv_inversion_id, monto,
+          formGasto.descripcion || undefined
+        );
+      }
       setModalGasto(false);
-      setFormGasto({ descripcion: '', monto: '', fecha: hoy(), categoria: 'Alimentación', tarjeta_version_id: '', cuenta_liquidez_id: '' });
+      resetFormGasto();
       cargarDatos();
     } catch (e) {
-      Alert.alert('Error', 'No se pudo guardar el gasto.');
+      console.error('[guardarGasto ERROR]', e);
+      Alert.alert('Error', String(e));
     }
   };
+
+  const resetFormIngreso = () => setFormIngreso({
+    monto: '', descripcion: '', categoria: 'Sueldo', fecha: hoy(),
+    cuenta_id: '', inv_id: '', inv_destino_cuenta_id: '',
+  });
 
   const guardarIngreso = async () => {
-    if (!formIngreso.monto || !formIngreso.cuenta_id) {
-      Alert.alert('Campos requeridos', 'Monto y cuenta son obligatorios.');
+    const monto = parseFloat(formIngreso.monto);
+    if (!formIngreso.monto || isNaN(monto) || monto <= 0) {
+      Alert.alert('Monto requerido');
       return;
     }
     try {
-      await crearMovimiento({
-        cuenta_id: formIngreso.cuenta_id,
-        tipo: 'ingreso',
-        monto: parseFloat(formIngreso.monto),
-        fecha: formIngreso.fecha,
-        descripcion: formIngreso.descripcion,
-        categoria: formIngreso.categoria,
-      });
+      if (tipoIngreso === 'cuenta') {
+        if (!formIngreso.cuenta_id || formIngreso.cuenta_id === '') { Alert.alert('Selecciona una cuenta'); return; }
+        await crearMovimiento({
+          cuenta_id: formIngreso.cuenta_id, tipo: 'ingreso', monto,
+          fecha: formIngreso.fecha,
+          descripcion: formIngreso.descripcion,
+          categoria: formIngreso.categoria,
+        });
+      } else if (tipoIngreso === 'desde_inversion') {
+        if (!formIngreso.inv_id || !formIngreso.inv_destino_cuenta_id) {
+          Alert.alert('Selecciona inversión y cuenta destino'); return;
+        }
+        await transferirInversionACuenta(
+          formIngreso.inv_id, formIngreso.inv_destino_cuenta_id, monto,
+          formIngreso.descripcion || undefined
+        );
+      }
       setModalIngreso(false);
-      setFormIngreso({ monto: '', descripcion: '', categoria: 'Sueldo', fecha: hoy(), cuenta_id: '' });
+      resetFormIngreso();
       cargarDatos();
     } catch (e) {
-      Alert.alert('Error', 'No se pudo guardar el ingreso.');
+      console.error('[guardarIngreso ERROR]', e);
+      Alert.alert('Error', String(e));
     }
   };
 
-  const neto = totalDisponible - totalDeuda;
+  const confirmarPagoRapido = async () => {
+    if (!pagoRModal || !pagoRCuentaId) return;
+    const monto = parseFloat(pagoRMonto);
+    if (isNaN(monto) || monto <= 0) { Alert.alert('Monto inválido'); return; }
+    try {
+      if (monto >= pagoRModal.saldo) {
+        await marcarPeriodoPagado(pagoRModal.periodoId, monto);
+      }
+      await crearMovimiento({
+        cuenta_id: pagoRCuentaId,
+        tipo: 'gasto',
+        monto,
+        fecha: hoy(),
+        descripcion: `Pago tarjeta ${pagoRModal.nombre}`,
+        categoria: 'tarjeta',
+      });
+      setPagoRModal(null);
+      setPagoRMonto('');
+      setPagoRCuentaId(null);
+      cargarDatos();
+    } catch (e) {
+      Alert.alert('Error', String(e));
+    }
+  };
+
+  const neto = totalDisponible - totalGastosMes - totalMSI - totalRecurrentes;
   const patrimonioNeto = totalDisponible + totalInversiones - totalDeuda;
 
   if (loading) {
@@ -172,7 +286,7 @@ export default function ResumenScreen() {
         />
 
         <View style={styles.patrimonioCard}>
-          <Text style={styles.patrimonioLabel}>Patrimonio neto</Text>
+          <Text style={styles.patrimonioLabel}>Patrimonio total</Text>
           <Text style={[styles.patrimonioValor, { color: patrimonioNeto >= 0 ? '#FFFFFF' : '#FCA5A5' }]}>
             {formatMXN(patrimonioNeto)}
           </Text>
@@ -210,6 +324,14 @@ export default function ResumenScreen() {
               <Text style={[styles.balanceValor, { color: '#10B981' }]}>{formatMXN(totalDisponible)}</Text>
             </View>
             <View style={styles.balanceRow}>
+              <Text style={styles.balanceLabel}>Gastos en tarjeta este mes</Text>
+              <Text style={[styles.balanceValor, { color: '#EF4444' }]}>− {formatMXN(totalGastosTarjetaMes)}</Text>
+            </View>
+            <View style={styles.balanceRow}>
+              <Text style={styles.balanceLabel}>Gastos en cuenta este mes</Text>
+              <Text style={[styles.balanceValor, { color: '#EF4444' }]}>− {formatMXN(totalGastosMes)}</Text>
+            </View>
+            <View style={styles.balanceRow}>
               <Text style={styles.balanceLabel}>Cuotas MSI este mes</Text>
               <Text style={[styles.balanceValor, { color: '#EF4444' }]}>− {formatMXN(totalMSI)}</Text>
             </View>
@@ -218,7 +340,7 @@ export default function ResumenScreen() {
               <Text style={[styles.balanceValor, { color: '#EF4444' }]}>− {formatMXN(totalRecurrentes)}</Text>
             </View>
             <View style={[styles.balanceRow, styles.balanceTotalRow]}>
-              <Text style={styles.balanceTotalLabel}>Neto después de pagos</Text>
+              <Text style={styles.balanceTotalLabel}>Efectivo disponible</Text>
               <Text style={[styles.balanceTotalValor, { color: neto >= 0 ? '#10B981' : '#EF4444' }]}>
                 {formatMXN(neto)}
               </Text>
@@ -239,6 +361,42 @@ export default function ResumenScreen() {
                   {formatMXN(c.saldo)}
                 </Text>
               </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        {pagosPendientes.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Pagos pendientes</Text>
+            {pagosPendientes.map(({ tarjeta, periodoAbierto, periodoCerrado }) => (
+              <View key={tarjeta.tarjeta_id} style={styles.pagoCard}>
+                <Text style={styles.pagoNombre}>{tarjeta.nombre} — {tarjeta.banco}</Text>
+                {periodoAbierto && (
+                  <Text style={styles.pagoAbiertoText}>
+                    Acumulado este corte: {formatMXN(periodoAbierto.saldo_calculado)} · Corta el día {tarjeta.dia_corte}
+                  </Text>
+                )}
+                {periodoCerrado && (() => {
+                  const vencido = new Date(periodoCerrado.fecha_limite_pago) < new Date();
+                  return (
+                    <View style={styles.pagoCerradoRow}>
+                      <Text style={[styles.pagoCerradoText, vencido && styles.pagoCerradoVencido]}>
+                        Por pagar: {formatMXN(periodoCerrado.saldo_calculado)} · Vence {fmtDDMM(periodoCerrado.fecha_limite_pago)}{vencido ? ' (vencido)' : ''}
+                      </Text>
+                      <TouchableOpacity
+                        style={styles.pagoBtn}
+                        onPress={() => {
+                          setPagoRModal({ periodoId: periodoCerrado.id, tarjetaId: tarjeta.tarjeta_id, nombre: tarjeta.nombre, saldo: periodoCerrado.saldo_calculado });
+                          setPagoRMonto(periodoCerrado.saldo_calculado > 0 ? String(periodoCerrado.saldo_calculado) : '');
+                          setPagoRCuentaId(cuentas[0]?.id ?? null);
+                        }}
+                      >
+                        <Text style={styles.pagoBtnText}>Pagar</Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })()}
+              </View>
             ))}
           </View>
         )}
@@ -298,11 +456,32 @@ export default function ResumenScreen() {
         <View style={styles.modal}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Nuevo gasto</Text>
-            <TouchableOpacity onPress={() => setModalGasto(false)}>
+            <TouchableOpacity onPress={() => { setModalGasto(false); resetFormGasto(); }}>
               <Ionicons name="close" size={24} color="#6B7280" />
             </TouchableOpacity>
           </View>
           <ScrollView style={styles.modalBody}>
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Tipo de gasto</Text>
+              <View style={{ gap: 8 }}>
+                <View style={styles.toggleRow}>
+                  <TouchableOpacity style={[styles.toggleBtn, tipoGasto === 'tarjeta' && styles.toggleBtnActive]} onPress={() => setTipoGasto('tarjeta')}>
+                    <Text style={[styles.toggleText, tipoGasto === 'tarjeta' && styles.toggleTextActive]}>Tarjeta</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.toggleBtn, tipoGasto === 'cuenta' && styles.toggleBtnActive]} onPress={() => setTipoGasto('cuenta')}>
+                    <Text style={[styles.toggleText, tipoGasto === 'cuenta' && styles.toggleTextActive]}>Cuenta</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.toggleRow}>
+                  <TouchableOpacity style={[styles.toggleBtn, tipoGasto === 'pago_tarjeta' && styles.toggleBtnActive]} onPress={() => setTipoGasto('pago_tarjeta')}>
+                    <Text style={[styles.toggleText, tipoGasto === 'pago_tarjeta' && styles.toggleTextActive]}>Pago tarjeta</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.toggleBtn, tipoGasto === 'a_inversion' && styles.toggleBtnActive]} onPress={() => setTipoGasto('a_inversion')}>
+                    <Text style={[styles.toggleText, tipoGasto === 'a_inversion' && styles.toggleTextActive]}>A inversión</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Descripción</Text>
               <TextInput style={styles.input} placeholder="Super, gasolina..." placeholderTextColor="#9CA3AF" value={formGasto.descripcion} onChangeText={v => setFormGasto(p => ({ ...p, descripcion: v }))} />
@@ -315,18 +494,7 @@ export default function ResumenScreen() {
               <Text style={styles.formLabel}>Fecha</Text>
               <TextInput style={styles.input} placeholder="YYYY-MM-DD" placeholderTextColor="#9CA3AF" value={formGasto.fecha} onChangeText={v => setFormGasto(p => ({ ...p, fecha: v }))} />
             </View>
-            <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>¿Con tarjeta de crédito?</Text>
-              <View style={styles.toggleRow}>
-                <TouchableOpacity style={[styles.toggleBtn, usaTarjeta && styles.toggleBtnActive]} onPress={() => setUsaTarjeta(true)}>
-                  <Text style={[styles.toggleText, usaTarjeta && styles.toggleTextActive]}>Sí</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.toggleBtn, !usaTarjeta && styles.toggleBtnActive]} onPress={() => setUsaTarjeta(false)}>
-                  <Text style={[styles.toggleText, !usaTarjeta && styles.toggleTextActive]}>No</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-            {usaTarjeta ? (
+            {tipoGasto === 'tarjeta' && (
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Tarjeta</Text>
                 {tarjetas.map(t => (
@@ -335,7 +503,8 @@ export default function ResumenScreen() {
                   </TouchableOpacity>
                 ))}
               </View>
-            ) : (
+            )}
+            {tipoGasto === 'cuenta' && (
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Cuenta</Text>
                 {cuentas.map(c => (
@@ -345,18 +514,109 @@ export default function ResumenScreen() {
                 ))}
               </View>
             )}
-            <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>Categoría</Text>
-              <View style={styles.chipsRow}>
-                {CATEGORIAS_GASTO.map(cat => (
-                  <TouchableOpacity key={cat} style={[styles.chip, formGasto.categoria === cat && styles.chipActive]} onPress={() => setFormGasto(p => ({ ...p, categoria: cat }))}>
-                    <Text style={[styles.chipText, formGasto.categoria === cat && styles.chipTextActive]}>{cat}</Text>
+            {tipoGasto === 'pago_tarjeta' && (<>
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Tarjeta a pagar</Text>
+                {tarjetas.map(t => (
+                  <TouchableOpacity key={t.tarjeta_id} style={[styles.selectorItem, formGasto.pago_tarjeta_id === t.tarjeta_id && styles.selectorItemActive]} onPress={() => setFormGasto(p => ({ ...p, pago_tarjeta_id: t.tarjeta_id }))}>
+                    <Text style={styles.selectorText}>{t.nombre} — {t.banco}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
-            </View>
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Cuenta origen</Text>
+                {cuentas.map(c => (
+                  <TouchableOpacity key={c.id} style={[styles.selectorItem, formGasto.pago_cuenta_id === c.id && styles.selectorItemActive]} onPress={() => setFormGasto(p => ({ ...p, pago_cuenta_id: c.id }))}>
+                    <Text style={styles.selectorText}>{c.nombre}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </>)}
+            {tipoGasto === 'a_inversion' && (<>
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Cuenta origen</Text>
+                {cuentas.map(c => (
+                  <TouchableOpacity key={c.id} style={[styles.selectorItem, formGasto.inv_cuenta_id === c.id && styles.selectorItemActive]} onPress={() => setFormGasto(p => ({ ...p, inv_cuenta_id: c.id }))}>
+                    <Text style={styles.selectorText}>{c.nombre}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Inversión destino</Text>
+                {inversiones.length === 0 ? (
+                  <Text style={styles.emptyText}>Agrega una inversión primero</Text>
+                ) : inversiones.map((inv: any) => (
+                  <TouchableOpacity key={inv.id} style={[styles.selectorItem, formGasto.inv_inversion_id === inv.id && styles.selectorItemActive]} onPress={() => setFormGasto(p => ({ ...p, inv_inversion_id: inv.id }))}>
+                    <Text style={styles.selectorText}>{inv.nombre} — {inv.institucion}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </>)}
+            {(tipoGasto === 'tarjeta' || tipoGasto === 'cuenta') && (
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Categoría</Text>
+                <View style={styles.chipsRow}>
+                  {CATEGORIAS_GASTO.map(cat => (
+                    <TouchableOpacity key={cat} style={[styles.chip, formGasto.categoria === cat && styles.chipActive]} onPress={() => setFormGasto(p => ({ ...p, categoria: cat }))}>
+                      <Text style={[styles.chipText, formGasto.categoria === cat && styles.chipTextActive]}>{cat}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
             <TouchableOpacity style={styles.saveBtn} onPress={guardarGasto}>
               <Text style={styles.saveBtnText}>Guardar gasto</Text>
+            </TouchableOpacity>
+            <View style={{ height: 40 }} />
+          </ScrollView>
+        </View>
+      </Modal>
+
+      {/* Modal pago rápido tarjeta */}
+      <Modal visible={!!pagoRModal} animationType="slide" presentationStyle="pageSheet">
+        <View style={styles.modal}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Pagar tarjeta</Text>
+            <TouchableOpacity onPress={() => { setPagoRModal(null); setPagoRMonto(''); setPagoRCuentaId(null); }}>
+              <Ionicons name="close" size={24} color="#6B7280" />
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={styles.modalBody}>
+            {pagoRModal && (
+              <Text style={[styles.pagoNombre, { marginBottom: 16 }]}>
+                {pagoRModal.nombre} · Saldo: {formatMXN(pagoRModal.saldo)}
+              </Text>
+            )}
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Monto a pagar ($)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="0.00"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="decimal-pad"
+                value={pagoRMonto}
+                onChangeText={setPagoRMonto}
+              />
+            </View>
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Descontar de cuenta</Text>
+              {cuentas.length === 0 ? (
+                <Text style={styles.emptyText}>Sin cuentas registradas</Text>
+              ) : cuentas.map(c => (
+                <TouchableOpacity
+                  key={c.id}
+                  style={[styles.selectorItem, pagoRCuentaId === c.id && styles.selectorItemActive]}
+                  onPress={() => setPagoRCuentaId(c.id)}
+                >
+                  <Text style={styles.selectorText}>{c.nombre}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TouchableOpacity
+              style={[styles.saveBtn, (!pagoRCuentaId || !pagoRMonto) && { opacity: 0.4 }]}
+              onPress={confirmarPagoRapido}
+            >
+              <Text style={styles.saveBtnText}>Confirmar pago</Text>
             </TouchableOpacity>
             <View style={{ height: 40 }} />
           </ScrollView>
@@ -368,11 +628,22 @@ export default function ResumenScreen() {
         <View style={styles.modal}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Nuevo ingreso</Text>
-            <TouchableOpacity onPress={() => setModalIngreso(false)}>
+            <TouchableOpacity onPress={() => { setModalIngreso(false); resetFormIngreso(); }}>
               <Ionicons name="close" size={24} color="#6B7280" />
             </TouchableOpacity>
           </View>
           <ScrollView style={styles.modalBody}>
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Tipo de ingreso</Text>
+              <View style={styles.toggleRow}>
+                <TouchableOpacity style={[styles.toggleBtn, tipoIngreso === 'cuenta' && styles.toggleBtnActive]} onPress={() => setTipoIngreso('cuenta')}>
+                  <Text style={[styles.toggleText, tipoIngreso === 'cuenta' && styles.toggleTextActive]}>Cuenta</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.toggleBtn, tipoIngreso === 'desde_inversion' && styles.toggleBtnActive]} onPress={() => setTipoIngreso('desde_inversion')}>
+                  <Text style={[styles.toggleText, tipoIngreso === 'desde_inversion' && styles.toggleTextActive]}>Desde inversión</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Monto ($)</Text>
               <TextInput style={styles.input} placeholder="0.00" placeholderTextColor="#9CA3AF" keyboardType="decimal-pad" value={formIngreso.monto} onChangeText={v => setFormIngreso(p => ({ ...p, monto: v }))} />
@@ -381,30 +652,52 @@ export default function ResumenScreen() {
               <Text style={styles.formLabel}>Descripción (opcional)</Text>
               <TextInput style={styles.input} placeholder="Sueldo, freelance..." placeholderTextColor="#9CA3AF" value={formIngreso.descripcion} onChangeText={v => setFormIngreso(p => ({ ...p, descripcion: v }))} />
             </View>
-            <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>Fecha</Text>
-              <TextInput style={styles.input} placeholder="YYYY-MM-DD" placeholderTextColor="#9CA3AF" value={formIngreso.fecha} onChangeText={v => setFormIngreso(p => ({ ...p, fecha: v }))} />
-            </View>
-            <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>¿A qué cuenta?</Text>
-              {cuentas.length === 0 ? (
-                <Text style={styles.emptyText}>Primero agrega una cuenta en la sección Cuentas</Text>
-              ) : cuentas.map(c => (
-                <TouchableOpacity key={c.id} style={[styles.selectorItem, formIngreso.cuenta_id === c.id && styles.selectorItemActive]} onPress={() => setFormIngreso(p => ({ ...p, cuenta_id: c.id }))}>
-                  <Text style={styles.selectorText}>{c.nombre}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>Categoría</Text>
-              <View style={styles.chipsRow}>
-                {CATEGORIAS_INGRESO.map(cat => (
-                  <TouchableOpacity key={cat} style={[styles.chip, formIngreso.categoria === cat && styles.chipActive]} onPress={() => setFormIngreso(p => ({ ...p, categoria: cat }))}>
-                    <Text style={[styles.chipText, formIngreso.categoria === cat && styles.chipTextActive]}>{cat}</Text>
+            {tipoIngreso === 'cuenta' && (<>
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Fecha</Text>
+                <TextInput style={styles.input} placeholder="YYYY-MM-DD" placeholderTextColor="#9CA3AF" value={formIngreso.fecha} onChangeText={v => setFormIngreso(p => ({ ...p, fecha: v }))} />
+              </View>
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>¿A qué cuenta?</Text>
+                {cuentas.length === 0 ? (
+                  <Text style={styles.emptyText}>Primero agrega una cuenta en la sección Cuentas</Text>
+                ) : cuentas.map(c => (
+                  <TouchableOpacity key={c.id} style={[styles.selectorItem, formIngreso.cuenta_id === c.id && styles.selectorItemActive]} onPress={() => setFormIngreso(p => ({ ...p, cuenta_id: c.id }))}>
+                    <Text style={styles.selectorText}>{c.nombre}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
-            </View>
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Categoría</Text>
+                <View style={styles.chipsRow}>
+                  {CATEGORIAS_INGRESO.map(cat => (
+                    <TouchableOpacity key={cat} style={[styles.chip, formIngreso.categoria === cat && styles.chipActive]} onPress={() => setFormIngreso(p => ({ ...p, categoria: cat }))}>
+                      <Text style={[styles.chipText, formIngreso.categoria === cat && styles.chipTextActive]}>{cat}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            </>)}
+            {tipoIngreso === 'desde_inversion' && (<>
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Inversión origen</Text>
+                {inversiones.length === 0 ? (
+                  <Text style={styles.emptyText}>Agrega una inversión primero</Text>
+                ) : inversiones.map((inv: any) => (
+                  <TouchableOpacity key={inv.id} style={[styles.selectorItem, formIngreso.inv_id === inv.id && styles.selectorItemActive]} onPress={() => setFormIngreso(p => ({ ...p, inv_id: inv.id }))}>
+                    <Text style={styles.selectorText}>{inv.nombre} — {inv.institucion}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Cuenta destino</Text>
+                {cuentas.map(c => (
+                  <TouchableOpacity key={c.id} style={[styles.selectorItem, formIngreso.inv_destino_cuenta_id === c.id && styles.selectorItemActive]} onPress={() => setFormIngreso(p => ({ ...p, inv_destino_cuenta_id: c.id }))}>
+                    <Text style={styles.selectorText}>{c.nombre}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </>)}
             <TouchableOpacity style={[styles.saveBtn, { backgroundColor: '#10B981' }]} onPress={guardarIngreso}>
               <Text style={styles.saveBtnText}>Guardar ingreso</Text>
             </TouchableOpacity>
@@ -477,6 +770,14 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: '#EEF2FF', borderColor: '#6366F1' },
   chipText: { fontSize: 12, color: '#6B7280' },
   chipTextActive: { color: '#4F46E5', fontWeight: '600' },
+  pagoCard: { backgroundColor: '#FFFFFF', borderRadius: 12, padding: 14, marginBottom: 8, gap: 6 },
+  pagoNombre: { fontSize: 14, fontWeight: '600', color: '#111827' },
+  pagoAbiertoText: { fontSize: 13, color: '#6B7280' },
+  pagoCerradoRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 2 },
+  pagoCerradoText: { flex: 1, fontSize: 13, color: '#374151' },
+  pagoCerradoVencido: { color: '#EF4444', fontWeight: '500' },
+  pagoBtn: { backgroundColor: '#4F46E5', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
+  pagoBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
   saveBtn: { backgroundColor: '#4F46E5', borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 8 },
   saveBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
 });

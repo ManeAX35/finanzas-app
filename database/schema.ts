@@ -1,4 +1,4 @@
-export const DATABASE_VERSION = 1;
+export const DATABASE_VERSION = 2;
 
 export const CREATE_TABLES = `
 
@@ -126,6 +126,7 @@ export const CREATE_TABLES = `
     id TEXT PRIMARY KEY,
     recurrente_id TEXT NOT NULL REFERENCES gasto_recurrente(id),
     tarjeta_version_id TEXT REFERENCES tarjeta_version(id),
+    cuenta_liquidez_id TEXT REFERENCES cuenta_liquidez(id),
     nombre TEXT NOT NULL,
     monto REAL DEFAULT 0,
     dia_cobro INTEGER NOT NULL,

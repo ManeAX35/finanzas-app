@@ -12,8 +12,9 @@ import {
   marcarInstanciaPagada, obtenerRecurrentesPorMes
 } from '../../database/queries/recurrentes';
 import { obtenerTarjetas } from '../../database/queries/tarjetas';
+import { obtenerCuentasLiquidez } from '../../database/queries/liquidez';
 import { formatMXN, hoy } from '../../database';
-import { GastoRecurrenteVersion, TarjetaConVersion } from '../../types';
+import { GastoRecurrenteVersion, TarjetaConVersion, CuentaLiquidez } from '../../types';
 import Header from '../../components/Header';
 
 const FRECUENCIAS = ['mensual', 'bimestral', 'trimestral', 'semestral', 'anual'];
@@ -22,7 +23,10 @@ const CATEGORIAS = ['Streaming', 'Servicios digitales', 'Salud/Gym', 'Seguro', '
 const FORM_INICIAL = {
   nombre: '', monto: '', dia_cobro: '',
   frecuencia: 'mensual', categoria: 'Streaming',
-  tarjeta_version_id: '', es_domiciliado: false, monto_variable: false,
+  tipo_cobro: 'ninguno' as 'ninguno' | 'tarjeta' | 'cuenta',
+  tarjeta_version_id: '',
+  cuenta_liquidez_id: '',
+  es_domiciliado: false, monto_variable: false,
 };
 
 export default function RecurrentesScreen() {
@@ -30,6 +34,7 @@ export default function RecurrentesScreen() {
   const [recurrentes, setRecurrentes] = useState<GastoRecurrenteVersion[]>([]);
   const [pendientes, setPendientes] = useState<any[]>([]);
   const [tarjetas, setTarjetas] = useState<TarjetaConVersion[]>([]);
+  const [cuentas, setCuentas] = useState<CuentaLiquidez[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [editando, setEditando] = useState<string | null>(null);
@@ -38,16 +43,19 @@ export default function RecurrentesScreen() {
   const cargarDatos = async () => {
     try {
       const hoyDate = new Date();
-      const [rec, tars, pend] = await Promise.all([
+      const [rec, tars, ctas, pend] = await Promise.all([
         obtenerRecurrentes(),
         obtenerTarjetas(),
+        obtenerCuentasLiquidez(),
         obtenerRecurrentesPorMes(hoyDate.getFullYear(), hoyDate.getMonth() + 1),
       ]);
       setRecurrentes(rec);
       setTarjetas(tars);
+      setCuentas(ctas);
       setPendientes(pend);
     } catch (e) {
-      console.error(e);
+      console.error('[recurrentes ERROR]', e);
+      Alert.alert('Error cargando recurrentes', String(e));
     } finally {
       setRefreshing(false);
     }
@@ -63,13 +71,17 @@ export default function RecurrentesScreen() {
 
   const abrirEditar = (r: GastoRecurrenteVersion) => {
     setEditando(r.recurrente_id);
+    const tipo_cobro: 'ninguno' | 'tarjeta' | 'cuenta' =
+      r.tarjeta_version_id ? 'tarjeta' : r.cuenta_liquidez_id ? 'cuenta' : 'ninguno';
     setForm({
       nombre: r.nombre,
       monto: String(r.monto),
       dia_cobro: String(r.dia_cobro),
       frecuencia: r.frecuencia,
       categoria: r.categoria ?? 'Otro',
+      tipo_cobro,
       tarjeta_version_id: r.tarjeta_version_id ?? '',
+      cuenta_liquidez_id: r.cuenta_liquidez_id ?? '',
       es_domiciliado: r.es_domiciliado === 1,
       monto_variable: r.monto_variable === 1,
     });
@@ -88,7 +100,8 @@ export default function RecurrentesScreen() {
         dia_cobro: parseInt(form.dia_cobro),
         frecuencia: form.frecuencia as GastoRecurrenteVersion['frecuencia'],
         categoria: form.categoria,
-        tarjeta_version_id: form.tarjeta_version_id || undefined,
+        tarjeta_version_id: form.tipo_cobro === 'tarjeta' ? (form.tarjeta_version_id || undefined) : undefined,
+        cuenta_liquidez_id: form.tipo_cobro === 'cuenta' ? (form.cuenta_liquidez_id || undefined) : undefined,
         es_domiciliado: form.es_domiciliado ? 1 : 0,
         monto_variable: form.monto_variable ? 1 : 0,
       };
@@ -294,20 +307,37 @@ export default function RecurrentesScreen() {
             </View>
 
             <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>Tarjeta (opcional)</Text>
+              <Text style={styles.formLabel}>Cobrar a</Text>
               <TouchableOpacity
-                style={[styles.selectorItem, !form.tarjeta_version_id && styles.selectorItemActive]}
-                onPress={() => setForm(p => ({ ...p, tarjeta_version_id: '' }))}
+                style={[styles.selectorItem, form.tipo_cobro === 'ninguno' && styles.selectorItemActive]}
+                onPress={() => setForm(p => ({ ...p, tipo_cobro: 'ninguno', tarjeta_version_id: '', cuenta_liquidez_id: '' }))}
               >
-                <Text style={styles.selectorText}>Sin tarjeta / efectivo</Text>
+                <Text style={styles.selectorText}>Sin cobro / efectivo</Text>
               </TouchableOpacity>
+
+              {tarjetas.length > 0 && (
+                <Text style={[styles.formLabel, { marginTop: 8, marginBottom: 4, fontSize: 11, color: '#9CA3AF' }]}>TARJETAS</Text>
+              )}
               {tarjetas.map(t => (
                 <TouchableOpacity
                   key={t.id}
-                  style={[styles.selectorItem, form.tarjeta_version_id === t.id && styles.selectorItemActive]}
-                  onPress={() => setForm(p => ({ ...p, tarjeta_version_id: t.id }))}
+                  style={[styles.selectorItem, form.tipo_cobro === 'tarjeta' && form.tarjeta_version_id === t.id && styles.selectorItemActive]}
+                  onPress={() => setForm(p => ({ ...p, tipo_cobro: 'tarjeta', tarjeta_version_id: t.id, cuenta_liquidez_id: '' }))}
                 >
                   <Text style={styles.selectorText}>{t.nombre} — {t.banco}</Text>
+                </TouchableOpacity>
+              ))}
+
+              {cuentas.length > 0 && (
+                <Text style={[styles.formLabel, { marginTop: 8, marginBottom: 4, fontSize: 11, color: '#9CA3AF' }]}>CUENTAS DE LIQUIDEZ</Text>
+              )}
+              {cuentas.map(c => (
+                <TouchableOpacity
+                  key={c.id}
+                  style={[styles.selectorItem, form.tipo_cobro === 'cuenta' && form.cuenta_liquidez_id === c.id && styles.selectorItemActive]}
+                  onPress={() => setForm(p => ({ ...p, tipo_cobro: 'cuenta', cuenta_liquidez_id: c.id, tarjeta_version_id: '' }))}
+                >
+                  <Text style={styles.selectorText}>{c.nombre}</Text>
                 </TouchableOpacity>
               ))}
             </View>

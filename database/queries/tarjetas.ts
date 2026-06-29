@@ -20,9 +20,14 @@ export async function crearTarjeta(
     pt
   );
 
-  const pv = [versionId, tarjetaId, version.banco ?? null, version.nombre ?? null, version.digitos ?? null,
-    version.limite_credito ?? 0, version.dia_corte ?? null, version.dias_pago ?? 20,
-    version.tasa_anual ?? 0, version.color ?? null, hoy()];
+  const diaCorte = (typeof version.dia_corte === 'number' && !isNaN(version.dia_corte)) ? version.dia_corte : 1;
+  const diasPago = (typeof version.dias_pago === 'number' && !isNaN(version.dias_pago)) ? version.dias_pago : 20;
+  const pv: (string | number | null)[] = [
+    versionId, tarjetaId,
+    version.banco ?? null, version.nombre ?? null, version.digitos || null,
+    version.limite_credito ?? 0, diaCorte, diasPago,
+    version.tasa_anual ?? 0, version.color || 'blue', hoy(),
+  ];
   console.log('[crearTarjeta] INSERT tarjeta_version:', JSON.stringify(pv));
   await db.runAsync(
     `INSERT INTO tarjeta_version
@@ -31,7 +36,7 @@ export async function crearTarjeta(
     pv
   );
 
-  await generarPeriodosCorte(tarjetaId, version.dia_corte, version.dias_pago);
+  await generarPeriodosCorte(tarjetaId, diaCorte, diasPago);
 
   return tarjetaId;
 }
@@ -59,14 +64,19 @@ export async function actualizarTarjeta(
 
   // Abrir nueva versión
   const versionId = uid();
+  const pvUpdate: (string | number | null)[] = [
+    versionId, tarjetaId,
+    nuevaVersion.banco ?? null, nuevaVersion.nombre ?? null, nuevaVersion.digitos || null,
+    nuevaVersion.limite_credito ?? 0,
+    (typeof nuevaVersion.dia_corte === 'number' && !isNaN(nuevaVersion.dia_corte)) ? nuevaVersion.dia_corte : 1,
+    (typeof nuevaVersion.dias_pago === 'number' && !isNaN(nuevaVersion.dias_pago)) ? nuevaVersion.dias_pago : 20,
+    nuevaVersion.tasa_anual ?? 0, nuevaVersion.color || 'blue', hoy(),
+  ];
   await db.runAsync(
     `INSERT INTO tarjeta_version
       (id, tarjeta_id, banco, nombre, digitos, limite_credito, dia_corte, dias_pago, tasa_anual, color, es_actual, vigente_desde)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
-    [versionId, tarjetaId, nuevaVersion.banco ?? null, nuevaVersion.nombre ?? null,
-     nuevaVersion.digitos ?? null, nuevaVersion.limite_credito ?? 0,
-     nuevaVersion.dia_corte ?? null, nuevaVersion.dias_pago ?? 20,
-     nuevaVersion.tasa_anual ?? 0, nuevaVersion.color ?? null, hoy()]
+    pvUpdate
   );
 
   // Snapshot del saldo antes del cambio
@@ -119,6 +129,7 @@ export async function generarPeriodosCorte(
   diasPago: number,
   mesesAdelante: number = 3
 ): Promise<void> {
+  if (!diaCorte || isNaN(diaCorte)) return;
   const db = await getDatabase();
 
   for (let i = 0; i < mesesAdelante; i++) {
@@ -170,6 +181,38 @@ export async function obtenerPeriodos(tarjetaId: string): Promise<PeriodoCorte[]
   );
 }
 
+export type PeriodoConSaldo = PeriodoCorte & { dias_para_vencer: number };
+
+export async function obtenerPeriodosConSaldo(tarjetaId: string): Promise<PeriodoConSaldo[]> {
+  const db = await getDatabase();
+  const hoyStr = hoy();
+  const rows = await db.getAllAsync<PeriodoCorte>(
+    `SELECT * FROM periodo_corte
+     WHERE tarjeta_id = ?
+     ORDER BY fecha_corte DESC
+     LIMIT 3`,
+    [tarjetaId]
+  );
+  return rows.map(p => {
+    const dias_para_vencer = p.fecha_limite_pago
+      ? Math.ceil((new Date(p.fecha_limite_pago).getTime() - new Date(hoyStr).getTime()) / 86400000)
+      : 0;
+    return { ...p, dias_para_vencer };
+  });
+}
+
+export async function obtenerPeriodoCerradoPendiente(tarjetaId: string): Promise<PeriodoCorte | null> {
+  const db = await getDatabase();
+  const hoyStr = hoy();
+  return await db.getFirstAsync<PeriodoCorte>(
+    `SELECT * FROM periodo_corte
+     WHERE tarjeta_id = ? AND fecha_corte < ? AND estado != 'pagado'
+     ORDER BY fecha_corte DESC
+     LIMIT 1`,
+    [tarjetaId, hoyStr]
+  );
+}
+
 export async function marcarPeriodoPagado(
   periodoId: string,
   montoPagado: number
@@ -179,8 +222,45 @@ export async function marcarPeriodoPagado(
     `UPDATE periodo_corte
      SET estado = 'pagado', monto_pagado = ?, fecha_pago_real = ?
      WHERE id = ?`,
-    [montoPagado, hoy(), periodoId]
+    [montoPagado ?? null, hoy(), periodoId ?? null]
   );
+}
+
+export async function abonarSaldoTarjeta(tarjetaId: string, monto: number): Promise<void> {
+  const db = await getDatabase();
+  const periodo = await db.getFirstAsync<{ id: string }>(
+    `SELECT id FROM periodo_corte
+     WHERE tarjeta_id = ? AND estado != 'pagado'
+     ORDER BY fecha_corte DESC LIMIT 1`,
+    [tarjetaId]
+  );
+  if (periodo) {
+    await db.runAsync(
+      `UPDATE periodo_corte SET saldo_calculado = MAX(0, saldo_calculado - ?) WHERE id = ?`,
+      [monto ?? null, periodo.id ?? null]
+    );
+  }
+}
+
+export async function sumarSaldoTarjetaPorVersion(tarjetaVersionId: string, monto: number): Promise<void> {
+  const db = await getDatabase();
+  const version = await db.getFirstAsync<{ tarjeta_id: string }>(
+    'SELECT tarjeta_id FROM tarjeta_version WHERE id = ?',
+    [tarjetaVersionId]
+  );
+  if (!version) return;
+  const periodo = await db.getFirstAsync<{ id: string }>(
+    `SELECT id FROM periodo_corte
+     WHERE tarjeta_id = ? AND estado = 'abierto'
+     ORDER BY fecha_corte ASC LIMIT 1`,
+    [version.tarjeta_id]
+  );
+  if (periodo) {
+    await db.runAsync(
+      'UPDATE periodo_corte SET saldo_calculado = saldo_calculado + ? WHERE id = ?',
+      [monto ?? null, periodo.id ?? null]
+    );
+  }
 }
 
 // ─────────────────────────────────────────

@@ -1,5 +1,6 @@
 import { getDatabase, uid, hoy } from '../index';
 import { GastoRecurrente, GastoRecurrenteVersion, InstanciaPago } from '../../types';
+import { sumarSaldoTarjetaPorVersion } from './tarjetas';
 
 // ─────────────────────────────────────────
 // CREAR RECURRENTE
@@ -18,17 +19,28 @@ export async function crearRecurrente(
     [recurrenteId, tipo]
   );
 
+  const pvCreate: (string | number | null)[] = [
+    versionId, recurrenteId,
+    version.tarjeta_version_id ?? null,
+    version.cuenta_liquidez_id ?? null,
+    version.nombre ?? '',
+    Number(version.monto) || 0,
+    Number(version.dia_cobro) || 1,
+    version.frecuencia ?? 'mensual',
+    version.categoria ?? null,
+    Number(version.es_domiciliado) || 0,
+    Number(version.monto_variable) || 0,
+    hoy(),
+  ];
   await db.runAsync(
     `INSERT INTO gasto_recurrente_version
-      (id, recurrente_id, tarjeta_version_id, nombre, monto, dia_cobro, frecuencia,
+      (id, recurrente_id, tarjeta_version_id, cuenta_liquidez_id, nombre, monto, dia_cobro, frecuencia,
        categoria, es_domiciliado, monto_variable, es_actual, vigente_desde)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
-    [versionId, recurrenteId, version.tarjeta_version_id ?? null,
-     version.nombre, version.monto, version.dia_cobro, version.frecuencia,
-     version.categoria ?? null, version.es_domiciliado, version.monto_variable, hoy()]
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+    pvCreate
   );
 
-  await generarInstanciasPago(recurrenteId, versionId, version.dia_cobro, version.frecuencia, version.monto);
+  await generarInstanciasPago(recurrenteId, versionId, Number(version.dia_cobro) || 1, version.frecuencia ?? 'mensual', Number(version.monto) || 0);
 
   return recurrenteId;
 }
@@ -56,18 +68,28 @@ export async function actualizarRecurrente(
 
   // Abrir nueva versión
   const versionId = uid();
+  const pvUpdate: (string | number | null)[] = [
+    versionId, recurrenteId,
+    nuevaVersion.tarjeta_version_id ?? null,
+    nuevaVersion.cuenta_liquidez_id ?? null,
+    nuevaVersion.nombre ?? '',
+    Number(nuevaVersion.monto) || 0,
+    Number(nuevaVersion.dia_cobro) || 1,
+    nuevaVersion.frecuencia ?? 'mensual',
+    nuevaVersion.categoria ?? null,
+    Number(nuevaVersion.es_domiciliado) || 0,
+    Number(nuevaVersion.monto_variable) || 0,
+    hoy(),
+  ];
   await db.runAsync(
     `INSERT INTO gasto_recurrente_version
-      (id, recurrente_id, tarjeta_version_id, nombre, monto, dia_cobro, frecuencia,
+      (id, recurrente_id, tarjeta_version_id, cuenta_liquidez_id, nombre, monto, dia_cobro, frecuencia,
        categoria, es_domiciliado, monto_variable, es_actual, vigente_desde)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
-    [versionId, recurrenteId, nuevaVersion.tarjeta_version_id ?? null,
-     nuevaVersion.nombre, nuevaVersion.monto, nuevaVersion.dia_cobro,
-     nuevaVersion.frecuencia, nuevaVersion.categoria ?? null,
-     nuevaVersion.es_domiciliado, nuevaVersion.monto_variable, hoy()]
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+    pvUpdate
   );
 
-  await generarInstanciasPago(recurrenteId, versionId, nuevaVersion.dia_cobro, nuevaVersion.frecuencia, nuevaVersion.monto);
+  await generarInstanciasPago(recurrenteId, versionId, Number(nuevaVersion.dia_cobro) || 1, nuevaVersion.frecuencia ?? 'mensual', Number(nuevaVersion.monto) || 0);
 }
 
 // ─────────────────────────────────────────
@@ -96,7 +118,7 @@ export async function obtenerRecurrentesPorMes(
   return await db.getAllAsync<InstanciaPago>(
     `SELECT ip.*, grv.nombre, grv.monto as monto_esperado
      FROM instancia_pago ip
-     JOIN gasto_recurrente_version grv ON grv.id = ip.recurrente_version_id
+     LEFT JOIN gasto_recurrente_version grv ON grv.id = ip.recurrente_version_id
      WHERE ip.fecha_esperada BETWEEN ? AND ?
      ORDER BY ip.fecha_esperada ASC`,
     [fechaInicio, fechaFin]
@@ -151,10 +173,11 @@ async function generarInstanciasPago(
     );
 
     if (!existe) {
+      const piParams: (string | number | null)[] = [uid(), versionId ?? null, fechaStr ?? hoy(), Number(monto) || 0];
       await db.runAsync(
         `INSERT INTO instancia_pago (id, recurrente_version_id, fecha_esperada, monto_cobrado, estado)
          VALUES (?, ?, ?, ?, 'esperado')`,
-        [uid(), versionId, fechaStr, monto]
+        piParams
       );
     }
   }
@@ -172,6 +195,34 @@ export async function marcarInstanciaPagada(
      WHERE id = ?`,
     [hoy(), montoCobrado, notas ?? null, instanciaId]
   );
+
+  const instancia = await db.getFirstAsync<{ recurrente_version_id: string }>(
+    'SELECT recurrente_version_id FROM instancia_pago WHERE id = ?',
+    [instanciaId]
+  );
+  if (!instancia) return;
+
+  const rv = await db.getFirstAsync<{ tarjeta_version_id: string | null; cuenta_liquidez_id: string | null; nombre: string }>(
+    'SELECT tarjeta_version_id, cuenta_liquidez_id, nombre FROM gasto_recurrente_version WHERE id = ?',
+    [instancia.recurrente_version_id]
+  );
+  if (!rv) return;
+
+  const monto = Number(montoCobrado) || 0;
+
+  if (rv.tarjeta_version_id) {
+    await sumarSaldoTarjetaPorVersion(rv.tarjeta_version_id, monto);
+  } else if (rv.cuenta_liquidez_id) {
+    const { crearMovimiento } = await import('./liquidez');
+    await crearMovimiento({
+      cuenta_id: rv.cuenta_liquidez_id,
+      tipo: 'gasto',
+      monto,
+      fecha: hoy(),
+      descripcion: rv.nombre,
+      categoria: 'Recurrente',
+    });
+  }
 }
 
 export async function marcarInstanciaFallida(

@@ -121,11 +121,7 @@ export async function crearMovimiento(
       movimiento.cuenta_id ?? null,
     ];
 
-    console.log('[crearMovimiento] SQL:', sql);
-    console.log('[crearMovimiento] paramsOrigen:', JSON.stringify(paramsOrigen));
     await db.runAsync(sql, paramsOrigen);
-
-    console.log('[crearMovimiento] paramsDestino:', JSON.stringify(paramsDestino));
     await db.runAsync(sql, paramsDestino);
 
     return idOrigen;
@@ -136,8 +132,8 @@ export async function crearMovimiento(
     `INSERT INTO movimiento_liquidez
       (id, cuenta_id, tipo, monto, fecha, descripcion, categoria, cuenta_destino_id)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, movimiento.cuenta_id, movimiento.tipo, movimiento.monto,
-     movimiento.fecha, movimiento.descripcion ?? null,
+    [id, movimiento.cuenta_id ?? null, movimiento.tipo ?? null, movimiento.monto ?? null,
+     movimiento.fecha ?? null, movimiento.descripcion ?? null,
      movimiento.categoria ?? null, movimiento.cuenta_destino_id ?? null]
   );
 

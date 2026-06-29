@@ -8,11 +8,20 @@ import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import {
   obtenerTarjetas, crearTarjeta, actualizarTarjeta,
-  eliminarTarjeta, obtenerPeriodoActual
+  eliminarTarjeta, obtenerPeriodoActual,
+  obtenerPeriodosConSaldo, marcarPeriodoPagado,
+  type PeriodoConSaldo,
 } from '../../database/queries/tarjetas';
-import { formatMXN } from '../../database';
-import { TarjetaConVersion } from '../../types';
+import { obtenerCuentasLiquidez, crearMovimiento } from '../../database/queries/liquidez';
+import { formatMXN, hoy } from '../../database';
+import { TarjetaConVersion, CuentaLiquidez } from '../../types';
 import Header from '../../components/Header';
+
+const MESES_CORTOS = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+function fmtFecha(iso: string) {
+  const p = iso.split('-');
+  return `${parseInt(p[2])} ${MESES_CORTOS[parseInt(p[1]) - 1]}`;
+}
 
 const COLORES = ['blue', 'teal', 'purple', 'coral', 'amber', 'gray'];
 const COLOR_MAP: Record<string, string> = {
@@ -25,33 +34,93 @@ const FORM_INICIAL = {
   dia_corte: '', dias_pago: '20', tasa_anual: '', color: 'blue',
 };
 
+type PagoModal = { periodoId: string; tarjetaId: string; saldo: number };
+
 export default function TarjetasScreen() {
   const [tarjetas, setTarjetas] = useState<TarjetaConVersion[]>([]);
   const [saldos, setSaldos] = useState<Record<string, number>>({});
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [editando, setEditando] = useState<string | null>(null);
   const [esDepartamental, setEsDepartamental] = useState(false);
   const [form, setForm] = useState(FORM_INICIAL);
 
+  const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
+  const [periodos, setPeriodos] = useState<Record<string, PeriodoConSaldo[]>>({});
+  const [cuentas, setCuentas] = useState<CuentaLiquidez[]>([]);
+  const [pagoModal, setPagoModal] = useState<PagoModal | null>(null);
+  const [pagoMonto, setPagoMonto] = useState('');
+  const [pagoCuentaId, setPagoCuentaId] = useState<string | null>(null);
+
   const cargarDatos = async () => {
     try {
+      console.log('[tarjetas] paso 1: obtenerTarjetas');
       const lista = await obtenerTarjetas();
+      console.log('[tarjetas] paso 2: lista.length =', lista.length);
       setTarjetas(lista);
       const map: Record<string, number> = {};
       for (const t of lista) {
+        console.log('[tarjetas] paso 3: obtenerPeriodoActual tarjeta_id =', t.tarjeta_id, typeof t.tarjeta_id);
         const p = await obtenerPeriodoActual(t.tarjeta_id);
         map[t.tarjeta_id] = p?.saldo_calculado ?? 0;
       }
       setSaldos(map);
+      console.log('[tarjetas] paso 4: obtenerCuentasLiquidez');
+      const cs = await obtenerCuentasLiquidez();
+      console.log('[tarjetas] paso 5: done, cuentas =', cs.length);
+      setCuentas(cs);
     } catch (e) {
-      console.error(e);
+      console.error('[tarjetas ERROR]', e);
+      Alert.alert('Error cargando tarjetas', String(e));
     } finally {
+      setLoading(false);
       setRefreshing(false);
     }
   };
 
   useFocusEffect(useCallback(() => { cargarDatos(); }, []));
+
+  const toggleExpand = async (tarjetaId: string) => {
+    const abriendo = !expandidos.has(tarjetaId);
+    setExpandidos(prev => {
+      const next = new Set(prev);
+      abriendo ? next.add(tarjetaId) : next.delete(tarjetaId);
+      return next;
+    });
+    if (abriendo) {
+      const ps = await obtenerPeriodosConSaldo(tarjetaId);
+      setPeriodos(prev => ({ ...prev, [tarjetaId]: ps }));
+    }
+  };
+
+  const cerrarPagoModal = () => {
+    setPagoModal(null);
+    setPagoMonto('');
+    setPagoCuentaId(null);
+  };
+
+  const confirmarPago = async () => {
+    if (!pagoModal || !pagoCuentaId) return;
+    const monto = parseFloat(pagoMonto);
+    if (isNaN(monto) || monto <= 0) { Alert.alert('Monto inválido'); return; }
+    try {
+      await marcarPeriodoPagado(pagoModal.periodoId, monto);
+      await crearMovimiento({
+        cuenta_id: pagoCuentaId,
+        tipo: 'gasto',
+        monto,
+        fecha: hoy(),
+        descripcion: 'Pago tarjeta de crédito',
+        categoria: 'tarjeta',
+      });
+      const ps = await obtenerPeriodosConSaldo(pagoModal.tarjetaId);
+      setPeriodos(prev => ({ ...prev, [pagoModal!.tarjetaId]: ps }));
+      cerrarPagoModal();
+    } catch (e) {
+      Alert.alert('Error', String(e));
+    }
+  };
 
   const abrirNueva = () => {
     setEditando(null);
@@ -107,6 +176,16 @@ export default function TarjetasScreen() {
     ]);
   };
 
+  const hoyStr = hoy();
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={{ color: '#6B7280', fontSize: 16 }}>Cargando...</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <Header title="Tarjetas" />
@@ -127,6 +206,10 @@ export default function TarjetasScreen() {
             const pct = t.limite_credito > 0 ? (saldo / t.limite_credito) * 100 : 0;
             const color = COLOR_MAP[t.color] ?? '#6366F1';
             const barColor = pct > 70 ? '#EF4444' : pct > 40 ? '#F59E0B' : '#10B981';
+            const expandido = expandidos.has(t.tarjeta_id);
+            const ps = periodos[t.tarjeta_id] ?? [];
+            const primerCerradoId = ps.find(p => p.fecha_corte < hoyStr && p.estado !== 'pagado')?.id;
+
             return (
               <View key={t.tarjeta_id} style={[styles.card, { borderLeftColor: color }]}>
                 <View style={styles.cardHeader}>
@@ -171,6 +254,63 @@ export default function TarjetasScreen() {
                 {t.tasa_anual > 0 && (
                   <Text style={styles.tasaText}>Tasa anual: {t.tasa_anual}%</Text>
                 )}
+
+                <TouchableOpacity style={styles.expandBtn} onPress={() => toggleExpand(t.tarjeta_id)}>
+                  <Text style={styles.expandBtnText}>Periodos</Text>
+                  <Ionicons name={expandido ? 'chevron-up' : 'chevron-down'} size={14} color="#6366F1" />
+                </TouchableOpacity>
+
+                {expandido && (
+                  <View style={styles.periodosWrap}>
+                    {ps.length === 0 ? (
+                      <Text style={styles.periodoVacio}>Sin periodos registrados</Text>
+                    ) : ps.map(p => {
+                      const esActual = p.fecha_corte >= hoyStr && p.estado === 'abierto';
+                      const esPagado = p.estado === 'pagado';
+                      const esCerrado = p.fecha_corte < hoyStr && !esPagado;
+                      const esPrimerCerrado = p.id === primerCerradoId;
+
+                      const estadoLabel = esPagado ? 'Pagado' : esActual ? 'Abierto' : 'Cerrado';
+                      const estadoColor = esPagado ? '#10B981' : esActual ? '#3B82F6' : '#F59E0B';
+
+                      return (
+                        <View key={p.id} style={[styles.periodoRow, esCerrado && styles.periodoRowCerrado]}>
+                          <View style={styles.periodoTop}>
+                            <View style={[styles.estadoBadge, { backgroundColor: estadoColor + '20' }]}>
+                              <Text style={[styles.estadoText, { color: estadoColor }]}>{estadoLabel}</Text>
+                            </View>
+                            <Text style={styles.periodoSaldo}>{formatMXN(p.saldo_calculado)}</Text>
+                          </View>
+                          <Text style={styles.periodoFechaLabel}>
+                            {esActual
+                              ? `Corte: ${fmtFecha(p.fecha_corte)} · Pago antes del: ${fmtFecha(p.fecha_limite_pago)}`
+                              : `Cortó: ${fmtFecha(p.fecha_corte)} · Límite: ${fmtFecha(p.fecha_limite_pago)}`}
+                          </Text>
+                          {esCerrado && p.dias_para_vencer > 0 && (
+                            <Text style={styles.periodoVence}>Vence en {p.dias_para_vencer} días</Text>
+                          )}
+                          {esCerrado && p.dias_para_vencer <= 0 && (
+                            <Text style={[styles.periodoVence, { color: '#EF4444' }]}>
+                              Venció hace {Math.abs(p.dias_para_vencer)} días
+                            </Text>
+                          )}
+                          {esPrimerCerrado && (
+                            <TouchableOpacity
+                              style={styles.pagarBtn}
+                              onPress={() => {
+                                setPagoModal({ periodoId: p.id, tarjetaId: t.tarjeta_id, saldo: p.saldo_calculado });
+                                setPagoMonto(p.saldo_calculado > 0 ? String(p.saldo_calculado) : '');
+                                setPagoCuentaId(cuentas[0]?.id ?? null);
+                              }}
+                            >
+                              <Text style={styles.pagarBtnText}>Registrar pago</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      );
+                    })}
+                  </View>
+                )}
               </View>
             );
           })
@@ -185,6 +325,7 @@ export default function TarjetasScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Modal crear/editar tarjeta */}
       <Modal visible={modalVisible} animationType="slide" presentationStyle="pageSheet">
         <View style={styles.modal}>
           <View style={styles.modalHeader}>
@@ -238,6 +379,54 @@ export default function TarjetasScreen() {
           </ScrollView>
         </View>
       </Modal>
+
+      {/* Modal registrar pago */}
+      <Modal visible={!!pagoModal} animationType="slide" presentationStyle="pageSheet">
+        <View style={styles.modal}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Registrar pago</Text>
+            <TouchableOpacity onPress={cerrarPagoModal}>
+              <Ionicons name="close" size={24} color="#6B7280" />
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={styles.modalBody}>
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Monto pagado ($)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder={pagoModal ? String(pagoModal.saldo) : '0'}
+                placeholderTextColor="#9CA3AF"
+                value={pagoMonto}
+                onChangeText={setPagoMonto}
+                keyboardType="decimal-pad"
+              />
+            </View>
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Descontar de cuenta</Text>
+              {cuentas.length === 0 ? (
+                <Text style={styles.periodoVacio}>Sin cuentas registradas. Agrega una en Cuentas.</Text>
+              ) : cuentas.map(c => (
+                <TouchableOpacity
+                  key={c.id}
+                  style={[styles.cuentaOption, pagoCuentaId === c.id && styles.cuentaOptionSelected]}
+                  onPress={() => setPagoCuentaId(c.id)}
+                >
+                  <Text style={[styles.cuentaOptionText, pagoCuentaId === c.id && styles.cuentaOptionTextSelected]}>
+                    {c.nombre}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TouchableOpacity
+              style={[styles.saveBtn, (!pagoCuentaId || !pagoMonto) && styles.saveBtnDisabled]}
+              onPress={confirmarPago}
+            >
+              <Text style={styles.saveBtnText}>Confirmar pago</Text>
+            </TouchableOpacity>
+            <View style={{ height: 40 }} />
+          </ScrollView>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -264,6 +453,20 @@ const styles = StyleSheet.create({
   progressFill: { height: '100%', borderRadius: 3 },
   pctText: { fontSize: 11, color: '#9CA3AF' },
   tasaText: { fontSize: 11, color: '#9CA3AF', marginTop: 2 },
+  expandBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: 12, paddingTop: 10, borderTopWidth: 0.5, borderTopColor: '#E5E7EB' },
+  expandBtnText: { fontSize: 13, color: '#6366F1', fontWeight: '500' },
+  periodosWrap: { marginTop: 10, gap: 8 },
+  periodoRow: { backgroundColor: '#F9FAFB', borderRadius: 10, padding: 12, gap: 6 },
+  periodoRowCerrado: { borderWidth: 1, borderColor: '#FDE68A' },
+  periodoTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  estadoBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  estadoText: { fontSize: 11, fontWeight: '600' },
+  periodoSaldo: { fontSize: 15, fontWeight: '700', color: '#111827' },
+  periodoFechaLabel: { fontSize: 12, color: '#374151' },
+  periodoVence: { fontSize: 11, color: '#D97706' },
+  periodoVacio: { fontSize: 12, color: '#9CA3AF', textAlign: 'center', padding: 8 },
+  pagarBtn: { backgroundColor: '#4F46E5', borderRadius: 8, padding: 10, alignItems: 'center', marginTop: 4 },
+  pagarBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
   bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, paddingBottom: 24, backgroundColor: '#FFFFFF', borderTopWidth: 0.5, borderTopColor: '#E5E7EB' },
   bottomBtn: { backgroundColor: '#4F46E5', borderRadius: 14, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   bottomBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
@@ -280,5 +483,10 @@ const styles = StyleSheet.create({
   colorDot: { width: 28, height: 28, borderRadius: 14 },
   colorDotSelected: { borderWidth: 3, borderColor: '#111827' },
   saveBtn: { backgroundColor: '#4F46E5', borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 8 },
+  saveBtnDisabled: { opacity: 0.4 },
   saveBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
+  cuentaOption: { backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 10, padding: 12, marginBottom: 8 },
+  cuentaOptionSelected: { borderColor: '#4F46E5', backgroundColor: '#EEF2FF' },
+  cuentaOptionText: { fontSize: 14, color: '#374151' },
+  cuentaOptionTextSelected: { color: '#4F46E5', fontWeight: '600' },
 });

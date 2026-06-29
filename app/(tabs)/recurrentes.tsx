@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, ScrollView, StyleSheet,
   TouchableOpacity, Modal, TextInput,
@@ -16,6 +16,8 @@ import { obtenerCuentasLiquidez } from '../../database/queries/liquidez';
 import { formatMXN, hoy } from '../../database';
 import { GastoRecurrenteVersion, TarjetaConVersion, CuentaLiquidez } from '../../types';
 import Header from '../../components/Header';
+import { useTheme } from '../../theme/ThemeContext';
+import { ThemeColors } from '../../theme/colors';
 
 const FRECUENCIAS = ['mensual', 'bimestral', 'trimestral', 'semestral', 'anual'];
 const CATEGORIAS = ['Streaming', 'Servicios digitales', 'Salud/Gym', 'Seguro', 'Renta', 'Servicios', 'Educación', 'Mensualidad', 'Otro'];
@@ -30,6 +32,9 @@ const FORM_INICIAL = {
 };
 
 export default function RecurrentesScreen() {
+  const { theme } = useTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
+
   const [tab, setTab] = useState<'activos' | 'pendientes'>('activos');
   const [recurrentes, setRecurrentes] = useState<GastoRecurrenteVersion[]>([]);
   const [pendientes, setPendientes] = useState<any[]>([]);
@@ -63,23 +68,15 @@ export default function RecurrentesScreen() {
 
   useFocusEffect(useCallback(() => { cargarDatos(); }, []));
 
-  const abrirNuevo = () => {
-    setEditando(null);
-    setForm(FORM_INICIAL);
-    setModalVisible(true);
-  };
+  const abrirNuevo = () => { setEditando(null); setForm(FORM_INICIAL); setModalVisible(true); };
 
   const abrirEditar = (r: GastoRecurrenteVersion) => {
     setEditando(r.recurrente_id);
     const tipo_cobro: 'ninguno' | 'tarjeta' | 'cuenta' =
       r.tarjeta_version_id ? 'tarjeta' : r.cuenta_liquidez_id ? 'cuenta' : 'ninguno';
     setForm({
-      nombre: r.nombre,
-      monto: String(r.monto),
-      dia_cobro: String(r.dia_cobro),
-      frecuencia: r.frecuencia,
-      categoria: r.categoria ?? 'Otro',
-      tipo_cobro,
+      nombre: r.nombre, monto: String(r.monto), dia_cobro: String(r.dia_cobro),
+      frecuencia: r.frecuencia, categoria: r.categoria ?? 'Otro', tipo_cobro,
       tarjeta_version_id: r.tarjeta_version_id ?? '',
       cuenta_liquidez_id: r.cuenta_liquidez_id ?? '',
       es_domiciliado: r.es_domiciliado === 1,
@@ -95,8 +92,7 @@ export default function RecurrentesScreen() {
     }
     try {
       const datos = {
-        nombre: form.nombre,
-        monto: parseFloat(form.monto) || 0,
+        nombre: form.nombre, monto: parseFloat(form.monto) || 0,
         dia_cobro: parseInt(form.dia_cobro),
         frecuencia: form.frecuencia as GastoRecurrenteVersion['frecuencia'],
         categoria: form.categoria,
@@ -105,31 +101,21 @@ export default function RecurrentesScreen() {
         es_domiciliado: form.es_domiciliado ? 1 : 0,
         monto_variable: form.monto_variable ? 1 : 0,
       };
-      if (editando) {
-        await actualizarRecurrente(editando, datos);
-      } else {
-        await crearRecurrente('suscripcion', datos);
-      }
+      if (editando) { await actualizarRecurrente(editando, datos); }
+      else { await crearRecurrente('suscripcion', datos); }
       setModalVisible(false);
       cargarDatos();
-    } catch (e) {
-      Alert.alert('Error', String(e));
-    }
+    } catch (e) { Alert.alert('Error', String(e)); }
   };
 
   const eliminar = (id: string, nombre: string) => {
     Alert.alert('Eliminar', `¿Eliminar ${nombre}?`, [
       { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Eliminar', style: 'destructive',
-        onPress: async () => { await eliminarRecurrente(id); cargarDatos(); }
-      },
+      { text: 'Eliminar', style: 'destructive', onPress: async () => { await eliminarRecurrente(id); cargarDatos(); } },
     ]);
   };
 
-  const totalMensual = recurrentes
-    .filter(r => r.frecuencia === 'mensual')
-    .reduce((s, r) => s + r.monto, 0);
+  const totalMensual = recurrentes.filter(r => r.frecuencia === 'mensual').reduce((s, r) => s + r.monto, 0);
 
   return (
     <View style={styles.container}>
@@ -137,11 +123,7 @@ export default function RecurrentesScreen() {
 
       <View style={styles.tabs}>
         {(['activos', 'pendientes'] as const).map(t => (
-          <TouchableOpacity
-            key={t}
-            style={[styles.tabBtn, tab === t && styles.tabBtnActive]}
-            onPress={() => setTab(t)}
-          >
+          <TouchableOpacity key={t} style={[styles.tabBtn, tab === t && styles.tabBtnActive]} onPress={() => setTab(t)}>
             <Text style={[styles.tabText, tab === t && styles.tabTextActive]}>
               {t === 'activos' ? 'Activos' : 'Pendientes este mes'}
             </Text>
@@ -157,7 +139,7 @@ export default function RecurrentesScreen() {
           <>
             {recurrentes.length === 0 ? (
               <View style={styles.emptyState}>
-                <Ionicons name="repeat-outline" size={48} color="#D1D5DB" />
+                <Ionicons name="repeat-outline" size={48} color={theme.border} />
                 <Text style={styles.emptyText}>Sin gastos recurrentes</Text>
               </View>
             ) : recurrentes.map(r => {
@@ -166,7 +148,7 @@ export default function RecurrentesScreen() {
                 <View key={r.id} style={styles.card}>
                   <View style={styles.cardHeader}>
                     <View style={styles.cardIcon}>
-                      <Ionicons name="repeat-outline" size={18} color="#F59E0B" />
+                      <Ionicons name="repeat-outline" size={18} color={theme.warning} />
                     </View>
                     <View style={styles.cardInfo}>
                       <Text style={styles.cardNombre}>{r.nombre}</Text>
@@ -177,10 +159,10 @@ export default function RecurrentesScreen() {
                       <Text style={styles.cardMonto}>{formatMXN(r.monto)}</Text>
                       <View style={styles.cardActions}>
                         <TouchableOpacity onPress={() => abrirEditar(r)}>
-                          <Ionicons name="pencil-outline" size={14} color="#6B7280" />
+                          <Ionicons name="pencil-outline" size={14} color={theme.textSecondary} />
                         </TouchableOpacity>
                         <TouchableOpacity onPress={() => eliminar(r.recurrente_id, r.nombre)}>
-                          <Ionicons name="trash-outline" size={14} color="#EF4444" />
+                          <Ionicons name="trash-outline" size={14} color={theme.danger} />
                         </TouchableOpacity>
                       </View>
                     </View>
@@ -192,8 +174,8 @@ export default function RecurrentesScreen() {
                       </View>
                     )}
                     {r.monto_variable === 1 && (
-                      <View style={[styles.badge, { backgroundColor: '#FEF3C7' }]}>
-                        <Text style={[styles.badgeText, { color: '#92400E' }]}>Monto variable</Text>
+                      <View style={[styles.badge, { backgroundColor: theme.warning + '20' }]}>
+                        <Text style={[styles.badgeText, { color: theme.warning }]}>Monto variable</Text>
                       </View>
                     )}
                   </View>
@@ -207,7 +189,7 @@ export default function RecurrentesScreen() {
           <>
             {pendientes.length === 0 ? (
               <View style={styles.emptyState}>
-                <Ionicons name="checkmark-circle-outline" size={48} color="#D1D5DB" />
+                <Ionicons name="checkmark-circle-outline" size={48} color={theme.border} />
                 <Text style={styles.emptyText}>Sin pagos pendientes este mes</Text>
               </View>
             ) : pendientes.map((p: any) => (
@@ -221,10 +203,7 @@ export default function RecurrentesScreen() {
                   {p.estado === 'esperado' && (
                     <TouchableOpacity
                       style={styles.pagarBtn}
-                      onPress={async () => {
-                        await marcarInstanciaPagada(p.id, p.monto_cobrado ?? p.monto_esperado);
-                        cargarDatos();
-                      }}
+                      onPress={async () => { await marcarInstanciaPagada(p.id, p.monto_cobrado ?? p.monto_esperado); cargarDatos(); }}
                     >
                       <Text style={styles.pagarBtnText}>Pagado</Text>
                     </TouchableOpacity>
@@ -249,12 +228,12 @@ export default function RecurrentesScreen() {
         </TouchableOpacity>
       </View>
 
-      <Modal visible={modalVisible} animationType="slide" presentationStyle="pageSheet">
+      <Modal visible={modalVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setModalVisible(false)}>
         <View style={styles.modal}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>{editando ? 'Editar recurrente' : 'Nuevo recurrente'}</Text>
             <TouchableOpacity onPress={() => setModalVisible(false)}>
-              <Ionicons name="close" size={24} color="#6B7280" />
+              <Ionicons name="close" size={24} color={theme.textSecondary} />
             </TouchableOpacity>
           </View>
           <ScrollView style={styles.modalBody}>
@@ -268,7 +247,7 @@ export default function RecurrentesScreen() {
                 <TextInput
                   style={styles.input}
                   placeholder={f.placeholder}
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor={theme.textSecondary}
                   keyboardType={f.keyboardType}
                   value={form[f.key as keyof typeof form] as string}
                   onChangeText={v => setForm(p => ({ ...p, [f.key]: v }))}
@@ -280,11 +259,7 @@ export default function RecurrentesScreen() {
               <Text style={styles.formLabel}>Frecuencia</Text>
               <View style={styles.chipsRow}>
                 {FRECUENCIAS.map(f => (
-                  <TouchableOpacity
-                    key={f}
-                    style={[styles.chip, form.frecuencia === f && styles.chipActive]}
-                    onPress={() => setForm(p => ({ ...p, frecuencia: f }))}
-                  >
+                  <TouchableOpacity key={f} style={[styles.chip, form.frecuencia === f && styles.chipActive]} onPress={() => setForm(p => ({ ...p, frecuencia: f }))}>
                     <Text style={[styles.chipText, form.frecuencia === f && styles.chipTextActive]}>{f}</Text>
                   </TouchableOpacity>
                 ))}
@@ -295,11 +270,7 @@ export default function RecurrentesScreen() {
               <Text style={styles.formLabel}>Categoría</Text>
               <View style={styles.chipsRow}>
                 {CATEGORIAS.map(c => (
-                  <TouchableOpacity
-                    key={c}
-                    style={[styles.chip, form.categoria === c && styles.chipActive]}
-                    onPress={() => setForm(p => ({ ...p, categoria: c }))}
-                  >
+                  <TouchableOpacity key={c} style={[styles.chip, form.categoria === c && styles.chipActive]} onPress={() => setForm(p => ({ ...p, categoria: c }))}>
                     <Text style={[styles.chipText, form.categoria === c && styles.chipTextActive]}>{c}</Text>
                   </TouchableOpacity>
                 ))}
@@ -316,7 +287,7 @@ export default function RecurrentesScreen() {
               </TouchableOpacity>
 
               {tarjetas.length > 0 && (
-                <Text style={[styles.formLabel, { marginTop: 8, marginBottom: 4, fontSize: 11, color: '#9CA3AF' }]}>TARJETAS</Text>
+                <Text style={[styles.formLabel, { marginTop: 8, marginBottom: 4, fontSize: 11, color: theme.textSecondary }]}>TARJETAS</Text>
               )}
               {tarjetas.map(t => (
                 <TouchableOpacity
@@ -329,7 +300,7 @@ export default function RecurrentesScreen() {
               ))}
 
               {cuentas.length > 0 && (
-                <Text style={[styles.formLabel, { marginTop: 8, marginBottom: 4, fontSize: 11, color: '#9CA3AF' }]}>CUENTAS DE LIQUIDEZ</Text>
+                <Text style={[styles.formLabel, { marginTop: 8, marginBottom: 4, fontSize: 11, color: theme.textSecondary }]}>CUENTAS DE LIQUIDEZ</Text>
               )}
               {cuentas.map(c => (
                 <TouchableOpacity
@@ -344,20 +315,12 @@ export default function RecurrentesScreen() {
 
             <View style={styles.switchRow}>
               <Text style={styles.formLabel}>Es domiciliado</Text>
-              <Switch
-                value={form.es_domiciliado}
-                onValueChange={v => setForm(p => ({ ...p, es_domiciliado: v }))}
-                trackColor={{ true: '#6366F1' }}
-              />
+              <Switch value={form.es_domiciliado} onValueChange={v => setForm(p => ({ ...p, es_domiciliado: v }))} trackColor={{ true: theme.secondary }} />
             </View>
 
             <View style={styles.switchRow}>
               <Text style={styles.formLabel}>Monto variable</Text>
-              <Switch
-                value={form.monto_variable}
-                onValueChange={v => setForm(p => ({ ...p, monto_variable: v }))}
-                trackColor={{ true: '#F59E0B' }}
-              />
+              <Switch value={form.monto_variable} onValueChange={v => setForm(p => ({ ...p, monto_variable: v }))} trackColor={{ true: theme.warning }} />
             </View>
 
             <TouchableOpacity style={styles.saveBtn} onPress={guardar}>
@@ -371,54 +334,54 @@ export default function RecurrentesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F9FAFB' },
-  tabs: { flexDirection: 'row', backgroundColor: '#FFFFFF', borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB' },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.background },
+  tabs: { flexDirection: 'row', backgroundColor: t.surface, borderBottomWidth: 0.5, borderBottomColor: t.border },
   tabBtn: { flex: 1, paddingVertical: 12, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
-  tabBtnActive: { borderBottomColor: '#4F46E5' },
-  tabText: { fontSize: 12, color: '#9CA3AF', fontWeight: '500' },
-  tabTextActive: { color: '#4F46E5' },
+  tabBtnActive: { borderBottomColor: t.primary },
+  tabText: { fontSize: 12, color: t.textSecondary, fontWeight: '500' },
+  tabTextActive: { color: t.primary },
   scroll: { padding: 16 },
   emptyState: { alignItems: 'center', padding: 40, gap: 8 },
-  emptyText: { fontSize: 14, color: '#9CA3AF' },
-  card: { backgroundColor: '#FFFFFF', borderRadius: 12, padding: 14, marginBottom: 8 },
+  emptyText: { fontSize: 14, color: t.textSecondary },
+  card: { backgroundColor: t.card, borderRadius: 12, padding: 14, marginBottom: 8 },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  cardIcon: { width: 36, height: 36, borderRadius: 10, backgroundColor: '#FEF3C7', justifyContent: 'center', alignItems: 'center' },
+  cardIcon: { width: 36, height: 36, borderRadius: 10, backgroundColor: t.warning + '20', justifyContent: 'center', alignItems: 'center' },
   cardInfo: { flex: 1 },
-  cardNombre: { fontSize: 14, fontWeight: '500', color: '#111827' },
-  cardSub: { fontSize: 11, color: '#9CA3AF', marginTop: 2 },
-  cardTag: { fontSize: 11, color: '#6366F1', marginTop: 2 },
+  cardNombre: { fontSize: 14, fontWeight: '500', color: t.text },
+  cardSub: { fontSize: 11, color: t.textSecondary, marginTop: 2 },
+  cardTag: { fontSize: 11, color: t.secondary, marginTop: 2 },
   cardRight: { alignItems: 'flex-end', gap: 4 },
-  cardMonto: { fontSize: 15, fontWeight: '600', color: '#111827' },
+  cardMonto: { fontSize: 15, fontWeight: '600', color: t.text },
   cardActions: { flexDirection: 'row', gap: 8 },
   badges: { flexDirection: 'row', gap: 6, marginTop: 8, marginLeft: 46 },
-  badge: { backgroundColor: '#EEF2FF', borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2 },
-  badgeText: { fontSize: 10, color: '#4F46E5', fontWeight: '500' },
-  pendienteItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 12, padding: 14, marginBottom: 8 },
+  badge: { backgroundColor: t.primary + '18', borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2 },
+  badgeText: { fontSize: 10, color: t.primary, fontWeight: '500' },
+  pendienteItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: t.card, borderRadius: 12, padding: 14, marginBottom: 8 },
   pendienteRight: { alignItems: 'flex-end', gap: 6 },
-  pagarBtn: { backgroundColor: '#10B981', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 4 },
+  pagarBtn: { backgroundColor: t.success, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 4 },
   pagarBtnText: { color: '#FFFFFF', fontSize: 12, fontWeight: '600' },
-  pagadoBadge: { backgroundColor: '#D1FAE5', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
-  pagadoText: { fontSize: 12, color: '#065F46', fontWeight: '500' },
-  bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, paddingBottom: 24, backgroundColor: '#FFFFFF', borderTopWidth: 0.5, borderTopColor: '#E5E7EB' },
-  bottomBtn: { backgroundColor: '#4F46E5', borderRadius: 14, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  pagadoBadge: { backgroundColor: t.success + '20', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
+  pagadoText: { fontSize: 12, color: t.success, fontWeight: '500' },
+  bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, paddingBottom: 24, backgroundColor: t.surface, borderTopWidth: 0.5, borderTopColor: t.border },
+  bottomBtn: { backgroundColor: t.primary, borderRadius: 14, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   bottomBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
-  modal: { flex: 1, backgroundColor: '#FFFFFF' },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 60, borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB' },
-  modalTitle: { fontSize: 18, fontWeight: '600', color: '#111827' },
+  modal: { flex: 1, backgroundColor: t.surface },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 60, borderBottomWidth: 0.5, borderBottomColor: t.border },
+  modalTitle: { fontSize: 18, fontWeight: '600', color: t.text },
   modalBody: { padding: 20 },
   formGroup: { marginBottom: 16 },
-  formLabel: { fontSize: 13, color: '#374151', fontWeight: '500', marginBottom: 6 },
-  input: { backgroundColor: '#F9FAFB', borderWidth: 0.5, borderColor: '#D1D5DB', borderRadius: 10, padding: 12, fontSize: 15, color: '#111827' },
+  formLabel: { fontSize: 13, color: t.text, fontWeight: '500', marginBottom: 6 },
+  input: { backgroundColor: t.background, borderWidth: 0.5, borderColor: t.border, borderRadius: 10, padding: 12, fontSize: 15, color: t.text },
   chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: '#F3F4F6', borderWidth: 0.5, borderColor: '#E5E7EB' },
-  chipActive: { backgroundColor: '#EEF2FF', borderColor: '#6366F1' },
-  chipText: { fontSize: 12, color: '#6B7280' },
-  chipTextActive: { color: '#4F46E5', fontWeight: '600' },
-  selectorItem: { padding: 12, borderRadius: 8, backgroundColor: '#F9FAFB', marginBottom: 6, borderWidth: 0.5, borderColor: '#E5E7EB' },
-  selectorItemActive: { backgroundColor: '#EEF2FF', borderColor: '#6366F1' },
-  selectorText: { fontSize: 14, color: '#374151' },
-  switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, backgroundColor: '#F9FAFB', padding: 14, borderRadius: 10 },
-  saveBtn: { backgroundColor: '#4F46E5', borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 8 },
+  chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: t.background, borderWidth: 0.5, borderColor: t.border },
+  chipActive: { backgroundColor: t.primary + '18', borderColor: t.primary },
+  chipText: { fontSize: 12, color: t.textSecondary },
+  chipTextActive: { color: t.primary, fontWeight: '600' },
+  selectorItem: { padding: 12, borderRadius: 8, backgroundColor: t.background, marginBottom: 6, borderWidth: 0.5, borderColor: t.border },
+  selectorItemActive: { backgroundColor: t.primary + '18', borderColor: t.primary },
+  selectorText: { fontSize: 14, color: t.text },
+  switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, backgroundColor: t.background, padding: 14, borderRadius: 10 },
+  saveBtn: { backgroundColor: t.primary, borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 8 },
   saveBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
 });

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, ScrollView, StyleSheet,
   TouchableOpacity, Modal, TextInput,
@@ -19,6 +19,8 @@ import {
 import { formatMXN, hoy } from '../../database';
 import { CuentaLiquidez, MovimientoLiquidez } from '../../types';
 import Header from '../../components/Header';
+import { useTheme } from '../../theme/ThemeContext';
+import { ThemeColors } from '../../theme/colors';
 
 const TIPOS = ['debito', 'digital', 'efectivo', 'monedero'] as const;
 type TipoCuenta = typeof TIPOS[number];
@@ -41,6 +43,9 @@ const FORM_INICIAL: FormCuenta = { nombre: '', tipo: 'debito', institucion: '', 
 const FORM_MOV_INICIAL = { tipo: 'ingreso', monto: '', descripcion: '', categoria: 'Sueldo', fecha: hoy(), cuenta_destino_id: '' };
 
 export default function CuentasScreen() {
+  const { theme } = useTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
+
   const [cuentas, setCuentas] = useState<CuentaLiquidez[]>([]);
   const [inversiones, setInversiones] = useState<any[]>([]);
   const [saldos, setSaldos] = useState<Record<string, number>>({});
@@ -196,7 +201,7 @@ export default function CuentasScreen() {
   if (loading) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <Text style={{ color: '#6B7280', fontSize: 16 }}>Cargando...</Text>
+        <Text style={{ color: theme.textSecondary, fontSize: 16 }}>Cargando...</Text>
       </View>
     );
   }
@@ -211,7 +216,7 @@ export default function CuentasScreen() {
       >
         {cuentas.length === 0 ? (
           <View style={styles.emptyState}>
-            <Ionicons name="wallet-outline" size={48} color="#D1D5DB" />
+            <Ionicons name="wallet-outline" size={48} color={theme.border} />
             <Text style={styles.emptyTitle}>Sin cuentas</Text>
             <Text style={styles.emptyText}>Agrega tus cuentas de débito, efectivo o digitales</Text>
           </View>
@@ -219,7 +224,7 @@ export default function CuentasScreen() {
           const saldo = saldos[c.id] ?? 0;
           const movs = movimientos[c.id] ?? [];
           const isExpanded = expandida === c.id;
-          const color = COLOR_MAP[c.color] ?? '#6B7280';
+          const color = COLOR_MAP[c.color] ?? theme.secondary;
 
           return (
             <View key={c.id} style={[styles.card, { borderLeftColor: color }]}>
@@ -233,10 +238,10 @@ export default function CuentasScreen() {
                     <Text style={styles.cardSub}>{TIPO_LABEL[c.tipo]}{c.institucion ? ` · ${c.institucion}` : ''}</Text>
                   </View>
                   <View style={styles.cardRight}>
-                    <Text style={[styles.cardSaldo, { color: saldo >= 0 ? '#10B981' : '#EF4444' }]}>
+                    <Text style={[styles.cardSaldo, { color: saldo >= 0 ? theme.success : theme.danger }]}>
                       {formatMXN(saldo)}
                     </Text>
-                    <Ionicons name={isExpanded ? 'chevron-up-outline' : 'chevron-down-outline'} size={16} color="#9CA3AF" />
+                    <Ionicons name={isExpanded ? 'chevron-up-outline' : 'chevron-down-outline'} size={16} color={theme.textSecondary} />
                   </View>
                 </View>
               </TouchableOpacity>
@@ -244,29 +249,29 @@ export default function CuentasScreen() {
               {isExpanded && (
                 <View style={styles.expanded}>
                   <View style={styles.expandedActions}>
-                    <TouchableOpacity style={[styles.actionBtn, { borderColor: '#10B981' }]} onPress={() => abrirMovimiento(c.id, 'ingreso')}>
-                      <Ionicons name="arrow-down-outline" size={14} color="#10B981" />
-                      <Text style={[styles.actionText, { color: '#10B981' }]}>Ingreso</Text>
+                    <TouchableOpacity style={[styles.actionBtn, { borderColor: theme.success }]} onPress={() => abrirMovimiento(c.id, 'ingreso')}>
+                      <Ionicons name="arrow-down-outline" size={14} color={theme.success} />
+                      <Text style={[styles.actionText, { color: theme.success }]}>Ingreso</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={[styles.actionBtn, { borderColor: '#EF4444' }]} onPress={() => abrirMovimiento(c.id, 'gasto')}>
-                      <Ionicons name="arrow-up-outline" size={14} color="#EF4444" />
-                      <Text style={[styles.actionText, { color: '#EF4444' }]}>Gasto</Text>
+                    <TouchableOpacity style={[styles.actionBtn, { borderColor: theme.danger }]} onPress={() => abrirMovimiento(c.id, 'gasto')}>
+                      <Ionicons name="arrow-up-outline" size={14} color={theme.danger} />
+                      <Text style={[styles.actionText, { color: theme.danger }]}>Gasto</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={[styles.actionBtn, { borderColor: '#6366F1' }]} onPress={() => abrirMovimiento(c.id, 'transferencia')}>
-                      <Ionicons name="swap-horizontal-outline" size={14} color="#6366F1" />
-                      <Text style={[styles.actionText, { color: '#6366F1' }]}>Transferir</Text>
+                    <TouchableOpacity style={[styles.actionBtn, { borderColor: theme.secondary }]} onPress={() => abrirMovimiento(c.id, 'transferencia')}>
+                      <Ionicons name="swap-horizontal-outline" size={14} color={theme.secondary} />
+                      <Text style={[styles.actionText, { color: theme.secondary }]}>Transferir</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={[styles.actionBtn, { borderColor: '#8B5CF6' }]} onPress={() => abrirTransferenciaInversion(c.id)}>
                       <Ionicons name="trending-up-outline" size={14} color="#8B5CF6" />
                       <Text style={[styles.actionText, { color: '#8B5CF6' }]}>A inversión</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={[styles.actionBtn, { borderColor: '#D1D5DB' }]} onPress={() => abrirEditar(c)}>
-                      <Ionicons name="pencil-outline" size={14} color="#6B7280" />
-                      <Text style={[styles.actionText, { color: '#6B7280' }]}>Editar</Text>
+                    <TouchableOpacity style={[styles.actionBtn, { borderColor: theme.border }]} onPress={() => abrirEditar(c)}>
+                      <Ionicons name="pencil-outline" size={14} color={theme.textSecondary} />
+                      <Text style={[styles.actionText, { color: theme.textSecondary }]}>Editar</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={[styles.actionBtn, { borderColor: '#FCA5A5' }]} onPress={() => eliminar(c.id, c.nombre)}>
-                      <Ionicons name="trash-outline" size={14} color="#EF4444" />
-                      <Text style={[styles.actionText, { color: '#EF4444' }]}>Eliminar</Text>
+                    <TouchableOpacity style={[styles.actionBtn, { borderColor: theme.danger + '80' }]} onPress={() => eliminar(c.id, c.nombre)}>
+                      <Ionicons name="trash-outline" size={14} color={theme.danger} />
+                      <Text style={[styles.actionText, { color: theme.danger }]}>Eliminar</Text>
                     </TouchableOpacity>
                   </View>
 
@@ -279,7 +284,7 @@ export default function CuentasScreen() {
                             <Ionicons
                               name={m.tipo === 'ingreso' ? 'arrow-down-circle-outline' : m.tipo === 'gasto' ? 'arrow-up-circle-outline' : 'swap-horizontal-outline'}
                               size={16}
-                              color={m.tipo === 'ingreso' ? '#10B981' : m.tipo === 'gasto' ? '#EF4444' : '#6366F1'}
+                              color={m.tipo === 'ingreso' ? theme.success : m.tipo === 'gasto' ? theme.danger : theme.secondary}
                             />
                             <View>
                               <Text style={styles.movDesc}>{m.descripcion ?? m.tipo}</Text>
@@ -287,11 +292,11 @@ export default function CuentasScreen() {
                             </View>
                           </View>
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                            <Text style={[styles.movMonto, { color: m.tipo === 'ingreso' ? '#10B981' : '#EF4444' }]}>
+                            <Text style={[styles.movMonto, { color: m.tipo === 'ingreso' ? theme.success : theme.danger }]}>
                               {m.tipo === 'ingreso' ? '+' : '−'}{formatMXN(m.monto)}
                             </Text>
                             <TouchableOpacity onPress={() => eliminarMov(m.id)}>
-                              <Ionicons name="trash-outline" size={14} color="#EF4444" />
+                              <Ionicons name="trash-outline" size={14} color={theme.danger} />
                             </TouchableOpacity>
                           </View>
                         </View>
@@ -314,22 +319,22 @@ export default function CuentasScreen() {
       </View>
 
       {/* Modal cuenta */}
-      <Modal visible={modalCuenta} animationType="slide" presentationStyle="pageSheet">
+      <Modal visible={modalCuenta} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => { setModalCuenta(false); setEditando(null); }}>
         <View style={styles.modal}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>{editando ? 'Editar cuenta' : 'Nueva cuenta'}</Text>
             <TouchableOpacity onPress={() => { setModalCuenta(false); setEditando(null); }}>
-              <Ionicons name="close" size={24} color="#6B7280" />
+              <Ionicons name="close" size={24} color={theme.textSecondary} />
             </TouchableOpacity>
           </View>
           <ScrollView style={styles.modalBody}>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Nombre</Text>
-              <TextInput style={styles.input} placeholder="BBVA Débito, Nu, Efectivo..." placeholderTextColor="#9CA3AF" value={form.nombre} onChangeText={v => setForm(p => ({ ...p, nombre: v }))} />
+              <TextInput style={styles.input} placeholder="BBVA Débito, Nu, Efectivo..." placeholderTextColor={theme.textSecondary} value={form.nombre} onChangeText={v => setForm(p => ({ ...p, nombre: v }))} />
             </View>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Institución (opcional)</Text>
-              <TextInput style={styles.input} placeholder="BBVA, Nu, Mercado Pago..." placeholderTextColor="#9CA3AF" value={form.institucion} onChangeText={v => setForm(p => ({ ...p, institucion: v }))} />
+              <TextInput style={styles.input} placeholder="BBVA, Nu, Mercado Pago..." placeholderTextColor={theme.textSecondary} value={form.institucion} onChangeText={v => setForm(p => ({ ...p, institucion: v }))} />
             </View>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Tipo</Text>
@@ -358,28 +363,28 @@ export default function CuentasScreen() {
       </Modal>
 
       {/* Modal movimiento */}
-      <Modal visible={modalMovimiento} animationType="slide" presentationStyle="pageSheet">
+      <Modal visible={modalMovimiento} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setModalMovimiento(false)}>
         <View style={styles.modal}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>
               {formMov.tipo === 'ingreso' ? 'Registrar ingreso' : formMov.tipo === 'gasto' ? 'Registrar gasto' : 'Transferencia'}
             </Text>
             <TouchableOpacity onPress={() => setModalMovimiento(false)}>
-              <Ionicons name="close" size={24} color="#6B7280" />
+              <Ionicons name="close" size={24} color={theme.textSecondary} />
             </TouchableOpacity>
           </View>
           <ScrollView style={styles.modalBody}>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Monto ($)</Text>
-              <TextInput style={styles.input} placeholder="0.00" placeholderTextColor="#9CA3AF" keyboardType="decimal-pad" value={formMov.monto} onChangeText={v => setFormMov(p => ({ ...p, monto: v }))} />
+              <TextInput style={styles.input} placeholder="0.00" placeholderTextColor={theme.textSecondary} keyboardType="decimal-pad" value={formMov.monto} onChangeText={v => setFormMov(p => ({ ...p, monto: v }))} />
             </View>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Descripción (opcional)</Text>
-              <TextInput style={styles.input} placeholder="Sueldo, super, gasolina..." placeholderTextColor="#9CA3AF" value={formMov.descripcion} onChangeText={v => setFormMov(p => ({ ...p, descripcion: v }))} />
+              <TextInput style={styles.input} placeholder="Sueldo, super, gasolina..." placeholderTextColor={theme.textSecondary} value={formMov.descripcion} onChangeText={v => setFormMov(p => ({ ...p, descripcion: v }))} />
             </View>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Fecha</Text>
-              <TextInput style={styles.input} placeholder="YYYY-MM-DD" placeholderTextColor="#9CA3AF" value={formMov.fecha} onChangeText={v => setFormMov(p => ({ ...p, fecha: v }))} />
+              <TextInput style={styles.input} placeholder="YYYY-MM-DD" placeholderTextColor={theme.textSecondary} value={formMov.fecha} onChangeText={v => setFormMov(p => ({ ...p, fecha: v }))} />
             </View>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Categoría</Text>
@@ -410,12 +415,12 @@ export default function CuentasScreen() {
       </Modal>
 
       {/* Modal transferencia a inversión */}
-      <Modal visible={modalInversion} animationType="slide" presentationStyle="pageSheet">
+      <Modal visible={modalInversion} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setModalInversion(false)}>
         <View style={styles.modal}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Cuenta → Inversión</Text>
             <TouchableOpacity onPress={() => setModalInversion(false)}>
-              <Ionicons name="close" size={24} color="#6B7280" />
+              <Ionicons name="close" size={24} color={theme.textSecondary} />
             </TouchableOpacity>
           </View>
           <ScrollView style={styles.modalBody}>
@@ -427,7 +432,7 @@ export default function CuentasScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="0.00"
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={theme.textSecondary}
                 keyboardType="decimal-pad"
                 value={formInversion.monto}
                 onChangeText={v => setFormInversion(p => ({ ...p, monto: v }))}
@@ -452,7 +457,7 @@ export default function CuentasScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="Razón de la transferencia..."
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={theme.textSecondary}
                 value={formInversion.notas}
                 onChangeText={v => setFormInversion(p => ({ ...p, notas: v }))}
               />
@@ -468,53 +473,53 @@ export default function CuentasScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F9FAFB' },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.background },
   scroll: { padding: 16 },
   emptyState: { alignItems: 'center', padding: 40, gap: 8 },
-  emptyTitle: { fontSize: 16, fontWeight: '500', color: '#6B7280' },
-  emptyText: { fontSize: 13, color: '#9CA3AF', textAlign: 'center' },
-  card: { backgroundColor: '#FFFFFF', borderRadius: 14, padding: 16, marginBottom: 10, borderLeftWidth: 4 },
+  emptyTitle: { fontSize: 16, fontWeight: '500', color: t.textSecondary },
+  emptyText: { fontSize: 13, color: t.textSecondary, textAlign: 'center' },
+  card: { backgroundColor: t.card, borderRadius: 14, padding: 16, marginBottom: 10, borderLeftWidth: 4 },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   cardIconBg: { width: 40, height: 40, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
   cardInfo: { flex: 1 },
-  cardNombre: { fontSize: 15, fontWeight: '600', color: '#111827' },
-  cardSub: { fontSize: 12, color: '#6B7280', marginTop: 2 },
+  cardNombre: { fontSize: 15, fontWeight: '600', color: t.text },
+  cardSub: { fontSize: 12, color: t.textSecondary, marginTop: 2 },
   cardRight: { alignItems: 'flex-end', gap: 4 },
   cardSaldo: { fontSize: 16, fontWeight: '700' },
-  expanded: { marginTop: 14, borderTopWidth: 0.5, borderTopColor: '#F3F4F6', paddingTop: 14 },
+  expanded: { marginTop: 14, borderTopWidth: 0.5, borderTopColor: t.border, paddingTop: 14 },
   expandedActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
-  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 0.5, backgroundColor: '#F9FAFB' },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 0.5, backgroundColor: t.background },
   actionText: { fontSize: 12, fontWeight: '500' },
-  movimientos: { borderTopWidth: 0.5, borderTopColor: '#F3F4F6', paddingTop: 12 },
-  movTitle: { fontSize: 12, fontWeight: '600', color: '#6B7280', marginBottom: 8 },
+  movimientos: { borderTopWidth: 0.5, borderTopColor: t.border, paddingTop: 12 },
+  movTitle: { fontSize: 12, fontWeight: '600', color: t.textSecondary, marginBottom: 8 },
   movRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 10 },
   movLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
-  movDesc: { fontSize: 13, color: '#374151', fontWeight: '500' },
-  movFecha: { fontSize: 11, color: '#9CA3AF', marginTop: 1 },
+  movDesc: { fontSize: 13, color: t.text, fontWeight: '500' },
+  movFecha: { fontSize: 11, color: t.textSecondary, marginTop: 1 },
   movMonto: { fontSize: 14, fontWeight: '600' },
-  bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, paddingBottom: 24, backgroundColor: '#FFFFFF', borderTopWidth: 0.5, borderTopColor: '#E5E7EB' },
-  bottomBtn: { backgroundColor: '#4F46E5', borderRadius: 14, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, paddingBottom: 24, backgroundColor: t.surface, borderTopWidth: 0.5, borderTopColor: t.border },
+  bottomBtn: { backgroundColor: t.primary, borderRadius: 14, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   bottomBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
-  modal: { flex: 1, backgroundColor: '#FFFFFF' },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 60, borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB' },
-  modalTitle: { fontSize: 18, fontWeight: '600', color: '#111827' },
+  modal: { flex: 1, backgroundColor: t.surface },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 60, borderBottomWidth: 0.5, borderBottomColor: t.border },
+  modalTitle: { fontSize: 18, fontWeight: '600', color: t.text },
   modalBody: { padding: 20 },
-  modalInfo: { fontSize: 13, color: '#6B7280', backgroundColor: '#F3F0FF', padding: 12, borderRadius: 8, marginBottom: 16 },
+  modalInfo: { fontSize: 13, color: t.textSecondary, backgroundColor: t.secondary + '15', padding: 12, borderRadius: 8, marginBottom: 16 },
   formGroup: { marginBottom: 16 },
-  formLabel: { fontSize: 13, color: '#374151', fontWeight: '500', marginBottom: 6 },
-  input: { backgroundColor: '#F9FAFB', borderWidth: 0.5, borderColor: '#D1D5DB', borderRadius: 10, padding: 12, fontSize: 15, color: '#111827' },
+  formLabel: { fontSize: 13, color: t.text, fontWeight: '500', marginBottom: 6 },
+  input: { backgroundColor: t.background, borderWidth: 0.5, borderColor: t.border, borderRadius: 10, padding: 12, fontSize: 15, color: t.text },
   chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: '#F3F4F6', borderWidth: 0.5, borderColor: '#E5E7EB' },
-  chipActive: { backgroundColor: '#EEF2FF', borderColor: '#6366F1' },
-  chipText: { fontSize: 12, color: '#6B7280' },
-  chipTextActive: { color: '#4F46E5', fontWeight: '600' },
+  chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: t.background, borderWidth: 0.5, borderColor: t.border },
+  chipActive: { backgroundColor: t.primary + '18', borderColor: t.primary },
+  chipText: { fontSize: 12, color: t.textSecondary },
+  chipTextActive: { color: t.primary, fontWeight: '600' },
   coloresRow: { flexDirection: 'row', gap: 12, marginTop: 8 },
   colorDot: { width: 28, height: 28, borderRadius: 14 },
-  colorDotSelected: { borderWidth: 3, borderColor: '#111827' },
-  selectorItem: { padding: 12, borderRadius: 8, backgroundColor: '#F9FAFB', marginBottom: 6, borderWidth: 0.5, borderColor: '#E5E7EB' },
-  selectorItemActive: { backgroundColor: '#EEF2FF', borderColor: '#6366F1' },
-  selectorText: { fontSize: 14, color: '#374151' },
-  saveBtn: { backgroundColor: '#4F46E5', borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 8 },
+  colorDotSelected: { borderWidth: 3, borderColor: t.text },
+  selectorItem: { padding: 12, borderRadius: 8, backgroundColor: t.background, marginBottom: 6, borderWidth: 0.5, borderColor: t.border },
+  selectorItemActive: { backgroundColor: t.primary + '18', borderColor: t.primary },
+  selectorText: { fontSize: 14, color: t.text },
+  saveBtn: { backgroundColor: t.primary, borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 8 },
   saveBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
 });

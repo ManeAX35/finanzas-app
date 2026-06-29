@@ -1,9 +1,11 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, ScrollView, StyleSheet,
   RefreshControl, TouchableOpacity, Modal, TextInput, Alert
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
+import { useTheme } from '../../theme/ThemeContext';
+import { ThemeColors } from '../../theme/colors';
 import { Ionicons } from '@expo/vector-icons';
 import { obtenerTarjetas, obtenerPeriodoActual, obtenerPeriodoCerradoPendiente, marcarPeriodoPagado, abonarSaldoTarjeta } from '../../database/queries/tarjetas';
 import { obtenerTotalDisponible, obtenerSaldosTodos, crearMovimiento } from '../../database/queries/liquidez';
@@ -33,6 +35,9 @@ const CATEGORIAS_GASTO =['Alimentación', 'Transporte', 'Salud', 'Entretenimient
 const CATEGORIAS_INGRESO = ['Sueldo', 'Freelance', 'Venta', 'Reembolso', 'Transferencia', 'Otro'];
 
 export default function ResumenScreen() {
+  const { theme } = useTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [totalDisponible, setTotalDisponible] = useState(0);
@@ -294,25 +299,25 @@ export default function ResumenScreen() {
         </View>
 
         <View style={styles.metricsGrid}>
-          <TouchableOpacity style={[styles.metricCard, { borderLeftColor: '#10B981' }]} onPress={() => router.push('/(tabs)/cuentas')}>
-            <Ionicons name="wallet-outline" size={18} color="#10B981" />
+          <TouchableOpacity style={[styles.metricCard, { borderLeftColor: theme.success }]} onPress={() => router.push('/(tabs)/cuentas')}>
+            <Ionicons name="wallet-outline" size={18} color={theme.success} />
             <Text style={styles.metricLabel}>Disponible</Text>
-            <Text style={[styles.metricValor, { color: '#10B981' }]}>{formatMXN(totalDisponible)}</Text>
+            <Text style={[styles.metricValor, { color: theme.success }]}>{formatMXN(totalDisponible)}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.metricCard, { borderLeftColor: '#EF4444' }]} onPress={() => router.push('/(tabs)/tarjetas')}>
-            <Ionicons name="card-outline" size={18} color="#EF4444" />
+          <TouchableOpacity style={[styles.metricCard, { borderLeftColor: theme.danger }]} onPress={() => router.push('/(tabs)/tarjetas')}>
+            <Ionicons name="card-outline" size={18} color={theme.danger} />
             <Text style={styles.metricLabel}>Deuda total</Text>
-            <Text style={[styles.metricValor, { color: '#EF4444' }]}>{formatMXN(totalDeuda)}</Text>
+            <Text style={[styles.metricValor, { color: theme.danger }]}>{formatMXN(totalDeuda)}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.metricCard, { borderLeftColor: '#F59E0B' }]} onPress={() => router.push('/(tabs)/recurrentes')}>
-            <Ionicons name="repeat-outline" size={18} color="#F59E0B" />
+          <TouchableOpacity style={[styles.metricCard, { borderLeftColor: theme.warning }]} onPress={() => router.push('/(tabs)/recurrentes')}>
+            <Ionicons name="repeat-outline" size={18} color={theme.warning} />
             <Text style={styles.metricLabel}>Recurrentes</Text>
-            <Text style={[styles.metricValor, { color: '#F59E0B' }]}>{formatMXN(totalRecurrentes)}</Text>
+            <Text style={[styles.metricValor, { color: theme.warning }]}>{formatMXN(totalRecurrentes)}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.metricCard, { borderLeftColor: '#6366F1' }]} onPress={() => router.push('/(tabs)/inversiones')}>
-            <Ionicons name="trending-up-outline" size={18} color="#6366F1" />
+          <TouchableOpacity style={[styles.metricCard, { borderLeftColor: theme.secondary }]} onPress={() => router.push('/(tabs)/inversiones')}>
+            <Ionicons name="trending-up-outline" size={18} color={theme.secondary} />
             <Text style={styles.metricLabel}>Inversiones</Text>
-            <Text style={[styles.metricValor, { color: '#6366F1' }]}>{formatMXN(totalInversiones)}</Text>
+            <Text style={[styles.metricValor, { color: theme.secondary }]}>{formatMXN(totalInversiones)}</Text>
           </TouchableOpacity>
         </View>
 
@@ -321,27 +326,27 @@ export default function ResumenScreen() {
           <View style={styles.balanceCard}>
             <View style={styles.balanceRow}>
               <Text style={styles.balanceLabel}>Disponible</Text>
-              <Text style={[styles.balanceValor, { color: '#10B981' }]}>{formatMXN(totalDisponible)}</Text>
+              <Text style={[styles.balanceValor, { color: theme.success }]}>{formatMXN(totalDisponible)}</Text>
             </View>
             <View style={styles.balanceRow}>
               <Text style={styles.balanceLabel}>Gastos en tarjeta este mes</Text>
-              <Text style={[styles.balanceValor, { color: '#EF4444' }]}>− {formatMXN(totalGastosTarjetaMes)}</Text>
+              <Text style={[styles.balanceValor, { color: theme.danger }]}>− {formatMXN(totalGastosTarjetaMes)}</Text>
             </View>
             <View style={styles.balanceRow}>
               <Text style={styles.balanceLabel}>Gastos en cuenta este mes</Text>
-              <Text style={[styles.balanceValor, { color: '#EF4444' }]}>− {formatMXN(totalGastosMes)}</Text>
+              <Text style={[styles.balanceValor, { color: theme.danger }]}>− {formatMXN(totalGastosMes)}</Text>
             </View>
             <View style={styles.balanceRow}>
               <Text style={styles.balanceLabel}>Cuotas MSI este mes</Text>
-              <Text style={[styles.balanceValor, { color: '#EF4444' }]}>− {formatMXN(totalMSI)}</Text>
+              <Text style={[styles.balanceValor, { color: theme.danger }]}>− {formatMXN(totalMSI)}</Text>
             </View>
             <View style={styles.balanceRow}>
               <Text style={styles.balanceLabel}>Recurrentes este mes</Text>
-              <Text style={[styles.balanceValor, { color: '#EF4444' }]}>− {formatMXN(totalRecurrentes)}</Text>
+              <Text style={[styles.balanceValor, { color: theme.danger }]}>− {formatMXN(totalRecurrentes)}</Text>
             </View>
             <View style={[styles.balanceRow, styles.balanceTotalRow]}>
               <Text style={styles.balanceTotalLabel}>Efectivo disponible</Text>
-              <Text style={[styles.balanceTotalValor, { color: neto >= 0 ? '#10B981' : '#EF4444' }]}>
+              <Text style={[styles.balanceTotalValor, { color: neto >= 0 ? theme.success : theme.danger }]}>
                 {formatMXN(neto)}
               </Text>
             </View>
@@ -354,10 +359,10 @@ export default function ResumenScreen() {
             {cuentasLiquidez.map(c => (
               <TouchableOpacity key={c.id} style={styles.cuentaRow} onPress={() => router.push('/(tabs)/cuentas')}>
                 <View style={styles.cuentaIcon}>
-                  <Ionicons name="wallet-outline" size={16} color="#6366F1" />
+                  <Ionicons name="wallet-outline" size={16} color={theme.secondary} />
                 </View>
                 <Text style={styles.cuentaNombre}>{c.nombre}</Text>
-                <Text style={[styles.cuentaSaldo, { color: c.saldo >= 0 ? '#10B981' : '#EF4444' }]}>
+                <Text style={[styles.cuentaSaldo, { color: c.saldo >= 0 ? theme.success : theme.danger }]}>
                   {formatMXN(c.saldo)}
                 </Text>
               </TouchableOpacity>
@@ -407,7 +412,7 @@ export default function ResumenScreen() {
             {tarjetas.map(t => {
               const saldo = tarjetasSaldo[t.tarjeta_id] ?? 0;
               const pct = t.limite_credito > 0 ? (saldo / t.limite_credito) * 100 : 0;
-              const color = pct > 70 ? '#EF4444' : pct > 40 ? '#F59E0B' : '#10B981';
+              const color = pct > 70 ? theme.danger : pct > 40 ? theme.warning : theme.success;
               return (
                 <TouchableOpacity key={t.tarjeta_id} style={styles.tarjetaCard} onPress={() => router.push('/(tabs)/tarjetas')}>
                   <View style={styles.tarjetaHeader}>
@@ -431,7 +436,7 @@ export default function ResumenScreen() {
 
         {tarjetas.length === 0 && cuentasLiquidez.length === 0 && (
           <View style={styles.emptyState}>
-            <Ionicons name="wallet-outline" size={48} color="#D1D5DB" />
+            <Ionicons name="wallet-outline" size={48} color={theme.border} />
             <Text style={styles.emptyTitle}>Todo listo</Text>
             <Text style={styles.emptyText}>Agrega tus tarjetas y cuentas para ver tu resumen aquí</Text>
           </View>
@@ -452,7 +457,7 @@ export default function ResumenScreen() {
       </View>
 
       {/* Modal gasto rápido */}
-      <Modal visible={modalGasto} animationType="slide" presentationStyle="pageSheet">
+      <Modal visible={modalGasto} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => { setModalGasto(false); resetFormGasto(); }}>
         <View style={styles.modal}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Nuevo gasto</Text>
@@ -573,7 +578,7 @@ export default function ResumenScreen() {
       </Modal>
 
       {/* Modal pago rápido tarjeta */}
-      <Modal visible={!!pagoRModal} animationType="slide" presentationStyle="pageSheet">
+      <Modal visible={!!pagoRModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => { setPagoRModal(null); setPagoRMonto(''); setPagoRCuentaId(null); }}>
         <View style={styles.modal}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Pagar tarjeta</Text>
@@ -624,7 +629,7 @@ export default function ResumenScreen() {
       </Modal>
 
       {/* Modal ingreso rápido */}
-      <Modal visible={modalIngreso} animationType="slide" presentationStyle="pageSheet">
+      <Modal visible={modalIngreso} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => { setModalIngreso(false); resetFormIngreso(); }}>
         <View style={styles.modal}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Nuevo ingreso</Text>
@@ -709,75 +714,75 @@ export default function ResumenScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F9FAFB' },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.background },
   scrollView: { flex: 1 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  loadingText: { color: '#6B7280', fontSize: 16 },
-  patrimonioCard: { margin: 16, backgroundColor: '#4F46E5', borderRadius: 16, padding: 20, alignItems: 'center' },
-  patrimonioLabel: { fontSize: 13, color: '#C7D2FE', marginBottom: 4 },
-  patrimonioValor: { fontSize: 32, fontWeight: '700' },
-  patrimonioSub: { fontSize: 11, color: '#A5B4FC', marginTop: 4 },
+  loadingText: { color: t.textSecondary, fontSize: 16 },
+  patrimonioCard: { margin: 16, backgroundColor: t.primary, borderRadius: 16, padding: 20, alignItems: 'center' },
+  patrimonioLabel: { fontSize: 13, color: '#FFFFFF99', marginBottom: 4 },
+  patrimonioValor: { fontSize: 32, fontWeight: '700', color: '#FFFFFF' },
+  patrimonioSub: { fontSize: 11, color: '#FFFFFFAA', marginTop: 4 },
   metricsGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12, gap: 8, marginBottom: 8 },
-  metricCard: { flex: 1, minWidth: '45%', backgroundColor: '#FFFFFF', borderRadius: 12, padding: 14, borderLeftWidth: 3, gap: 4 },
-  metricLabel: { fontSize: 11, color: '#6B7280', marginTop: 4 },
+  metricCard: { flex: 1, minWidth: '45%', backgroundColor: t.card, borderRadius: 12, padding: 14, borderLeftWidth: 3, gap: 4 },
+  metricLabel: { fontSize: 11, color: t.textSecondary, marginTop: 4 },
   metricValor: { fontSize: 16, fontWeight: '600' },
   section: { marginHorizontal: 16, marginBottom: 16 },
-  sectionTitle: { fontSize: 15, fontWeight: '600', color: '#111827', marginBottom: 10 },
-  balanceCard: { backgroundColor: '#FFFFFF', borderRadius: 12, padding: 16, gap: 10 },
+  sectionTitle: { fontSize: 15, fontWeight: '600', color: t.text, marginBottom: 10 },
+  balanceCard: { backgroundColor: t.card, borderRadius: 12, padding: 16, gap: 10 },
   balanceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  balanceLabel: { fontSize: 14, color: '#6B7280' },
+  balanceLabel: { fontSize: 14, color: t.textSecondary },
   balanceValor: { fontSize: 14, fontWeight: '500' },
-  balanceTotalRow: { borderTopWidth: 0.5, borderTopColor: '#E5E7EB', paddingTop: 10, marginTop: 4 },
-  balanceTotalLabel: { fontSize: 14, fontWeight: '600', color: '#111827' },
+  balanceTotalRow: { borderTopWidth: 0.5, borderTopColor: t.border, paddingTop: 10, marginTop: 4 },
+  balanceTotalLabel: { fontSize: 14, fontWeight: '600', color: t.text },
   balanceTotalValor: { fontSize: 16, fontWeight: '700' },
-  cuentaRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 10, padding: 14, marginBottom: 8, gap: 10 },
-  cuentaIcon: { width: 32, height: 32, borderRadius: 8, backgroundColor: '#EEF2FF', justifyContent: 'center', alignItems: 'center' },
-  cuentaNombre: { flex: 1, fontSize: 14, color: '#374151' },
+  cuentaRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: t.card, borderRadius: 10, padding: 14, marginBottom: 8, gap: 10 },
+  cuentaIcon: { width: 32, height: 32, borderRadius: 8, backgroundColor: t.primary + '18', justifyContent: 'center', alignItems: 'center' },
+  cuentaNombre: { flex: 1, fontSize: 14, color: t.text },
   cuentaSaldo: { fontSize: 15, fontWeight: '600' },
-  tarjetaCard: { backgroundColor: '#FFFFFF', borderRadius: 12, padding: 14, marginBottom: 8 },
+  tarjetaCard: { backgroundColor: t.card, borderRadius: 12, padding: 14, marginBottom: 8 },
   tarjetaHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 },
-  tarjetaNombre: { fontSize: 14, fontWeight: '500', color: '#111827' },
-  tarjetaBanco: { fontSize: 12, color: '#6B7280', marginTop: 2 },
+  tarjetaNombre: { fontSize: 14, fontWeight: '500', color: t.text },
+  tarjetaBanco: { fontSize: 12, color: t.textSecondary, marginTop: 2 },
   tarjetaSaldo: { fontSize: 16, fontWeight: '600' },
-  progressBg: { height: 6, backgroundColor: '#F3F4F6', borderRadius: 3, overflow: 'hidden', marginBottom: 6 },
+  progressBg: { height: 6, backgroundColor: t.border, borderRadius: 3, overflow: 'hidden', marginBottom: 6 },
   progressFill: { height: '100%', borderRadius: 3 },
-  tarjetaLimite: { fontSize: 11, color: '#9CA3AF' },
+  tarjetaLimite: { fontSize: 11, color: t.textSecondary },
   emptyState: { alignItems: 'center', padding: 40, gap: 8 },
-  emptyTitle: { fontSize: 16, fontWeight: '500', color: '#6B7280' },
-  emptyText: { fontSize: 13, color: '#9CA3AF', textAlign: 'center' },
-  bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, paddingBottom: 24, backgroundColor: '#FFFFFF', borderTopWidth: 0.5, borderTopColor: '#E5E7EB', flexDirection: 'row', gap: 10 },
-  bottomBtnIngreso: { flex: 1, backgroundColor: '#10B981', borderRadius: 14, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  bottomBtnGasto: { flex: 1, backgroundColor: '#4F46E5', borderRadius: 14, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  emptyTitle: { fontSize: 16, fontWeight: '500', color: t.textSecondary },
+  emptyText: { fontSize: 13, color: t.textSecondary, textAlign: 'center' },
+  bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, paddingBottom: 24, backgroundColor: t.surface, borderTopWidth: 0.5, borderTopColor: t.border, flexDirection: 'row', gap: 10 },
+  bottomBtnIngreso: { flex: 1, backgroundColor: t.success, borderRadius: 14, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  bottomBtnGasto: { flex: 1, backgroundColor: t.primary, borderRadius: 14, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   bottomBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '600' },
-  modal: { flex: 1, backgroundColor: '#FFFFFF' },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 60, borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB' },
-  modalTitle: { fontSize: 18, fontWeight: '600', color: '#111827' },
+  modal: { flex: 1, backgroundColor: t.surface },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 60, borderBottomWidth: 0.5, borderBottomColor: t.border },
+  modalTitle: { fontSize: 18, fontWeight: '600', color: t.text },
   modalBody: { padding: 20 },
   formGroup: { marginBottom: 16 },
-  formLabel: { fontSize: 13, color: '#374151', fontWeight: '500', marginBottom: 6 },
-  input: { backgroundColor: '#F9FAFB', borderWidth: 0.5, borderColor: '#D1D5DB', borderRadius: 10, padding: 12, fontSize: 15, color: '#111827' },
+  formLabel: { fontSize: 13, color: t.text, fontWeight: '500', marginBottom: 6 },
+  input: { backgroundColor: t.background, borderWidth: 0.5, borderColor: t.border, borderRadius: 10, padding: 12, fontSize: 15, color: t.text },
   toggleRow: { flexDirection: 'row', gap: 8 },
-  toggleBtn: { flex: 1, padding: 10, borderRadius: 8, backgroundColor: '#F3F4F6', alignItems: 'center' },
-  toggleBtnActive: { backgroundColor: '#EEF2FF' },
-  toggleText: { fontSize: 14, color: '#6B7280' },
-  toggleTextActive: { color: '#4F46E5', fontWeight: '600' },
-  selectorItem: { padding: 12, borderRadius: 8, backgroundColor: '#F9FAFB', marginBottom: 6, borderWidth: 0.5, borderColor: '#E5E7EB' },
-  selectorItemActive: { backgroundColor: '#EEF2FF', borderColor: '#6366F1' },
-  selectorText: { fontSize: 14, color: '#374151' },
+  toggleBtn: { flex: 1, padding: 10, borderRadius: 8, backgroundColor: t.background, alignItems: 'center' },
+  toggleBtnActive: { backgroundColor: t.primary + '18' },
+  toggleText: { fontSize: 14, color: t.textSecondary },
+  toggleTextActive: { color: t.primary, fontWeight: '600' },
+  selectorItem: { padding: 12, borderRadius: 8, backgroundColor: t.background, marginBottom: 6, borderWidth: 0.5, borderColor: t.border },
+  selectorItemActive: { backgroundColor: t.primary + '18', borderColor: t.primary },
+  selectorText: { fontSize: 14, color: t.text },
   chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: '#F3F4F6', borderWidth: 0.5, borderColor: '#E5E7EB' },
-  chipActive: { backgroundColor: '#EEF2FF', borderColor: '#6366F1' },
-  chipText: { fontSize: 12, color: '#6B7280' },
-  chipTextActive: { color: '#4F46E5', fontWeight: '600' },
-  pagoCard: { backgroundColor: '#FFFFFF', borderRadius: 12, padding: 14, marginBottom: 8, gap: 6 },
-  pagoNombre: { fontSize: 14, fontWeight: '600', color: '#111827' },
-  pagoAbiertoText: { fontSize: 13, color: '#6B7280' },
+  chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: t.background, borderWidth: 0.5, borderColor: t.border },
+  chipActive: { backgroundColor: t.primary + '18', borderColor: t.primary },
+  chipText: { fontSize: 12, color: t.textSecondary },
+  chipTextActive: { color: t.primary, fontWeight: '600' },
+  pagoCard: { backgroundColor: t.card, borderRadius: 12, padding: 14, marginBottom: 8, gap: 6 },
+  pagoNombre: { fontSize: 14, fontWeight: '600', color: t.text },
+  pagoAbiertoText: { fontSize: 13, color: t.textSecondary },
   pagoCerradoRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 2 },
-  pagoCerradoText: { flex: 1, fontSize: 13, color: '#374151' },
-  pagoCerradoVencido: { color: '#EF4444', fontWeight: '500' },
-  pagoBtn: { backgroundColor: '#4F46E5', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
+  pagoCerradoText: { flex: 1, fontSize: 13, color: t.text },
+  pagoCerradoVencido: { color: t.danger, fontWeight: '500' },
+  pagoBtn: { backgroundColor: t.primary, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
   pagoBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
-  saveBtn: { backgroundColor: '#4F46E5', borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 8 },
+  saveBtn: { backgroundColor: t.primary, borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 8 },
   saveBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
 });

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, ScrollView, StyleSheet,
   TouchableOpacity, Modal, TextInput,
@@ -13,11 +13,16 @@ import { obtenerCuentasInversion, transferirCuentaAInversion } from '../../datab
 import { formatMXN, hoy } from '../../database';
 import { Gasto, Compra, TarjetaConVersion, CuentaLiquidez } from '../../types';
 import Header from '../../components/Header';
+import { useTheme } from '../../theme/ThemeContext';
+import { ThemeColors } from '../../theme/colors';
 
 const CATEGORIAS = ['Alimentación', 'Transporte', 'Salud', 'Entretenimiento', 'Ropa', 'Hogar', 'Tecnología', 'Educación', 'Viaje', 'Otro'];
 const MSI_OPTS = [1, 3, 6, 9, 12, 18, 24];
 
 export default function GastosScreen() {
+  const { theme } = useTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
+
   const [tab, setTab] = useState<'gastos' | 'msi' | 'cuotas'>('gastos');
   const [gastos, setGastos] = useState<Gasto[]>([]);
   const [compras, setCompras] = useState<Compra[]>([]);
@@ -200,7 +205,7 @@ export default function GastosScreen() {
           <>
             {gastos.length === 0 ? (
               <View style={styles.emptyState}>
-                <Ionicons name="receipt-outline" size={48} color="#D1D5DB" />
+                <Ionicons name="receipt-outline" size={48} color={theme.border} />
                 <Text style={styles.emptyText}>Sin gastos registrados</Text>
               </View>
             ) : gastos.map(g => {
@@ -209,7 +214,7 @@ export default function GastosScreen() {
                 <View key={g.id} style={styles.item}>
                   <View style={styles.itemLeft}>
                     <View style={styles.itemIcon}>
-                      <Ionicons name="receipt-outline" size={16} color="#6366F1" />
+                      <Ionicons name="receipt-outline" size={16} color={theme.secondary} />
                     </View>
                     <View>
                       <Text style={styles.itemTitle}>{g.descripcion}</Text>
@@ -221,10 +226,10 @@ export default function GastosScreen() {
                     <Text style={styles.itemMonto}>{formatMXN(g.monto)}</Text>
                     <View style={{ flexDirection: 'row', gap: 10 }}>
                       <TouchableOpacity onPress={() => abrirEditarGasto(g)}>
-                        <Ionicons name="pencil-outline" size={14} color="#6366F1" />
+                        <Ionicons name="pencil-outline" size={14} color={theme.secondary} />
                       </TouchableOpacity>
                       <TouchableOpacity onPress={() => borrarGasto(g.id)}>
-                        <Ionicons name="trash-outline" size={14} color="#EF4444" />
+                        <Ionicons name="trash-outline" size={14} color={theme.danger} />
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -238,7 +243,7 @@ export default function GastosScreen() {
           <>
             {compras.length === 0 ? (
               <View style={styles.emptyState}>
-                <Ionicons name="layers-outline" size={48} color="#D1D5DB" />
+                <Ionicons name="layers-outline" size={48} color={theme.border} />
                 <Text style={styles.emptyText}>Sin compras a MSI</Text>
               </View>
             ) : compras.map(c => {
@@ -248,7 +253,7 @@ export default function GastosScreen() {
                   <View style={styles.msiHeader}>
                     <Text style={styles.msiTitle}>{c.descripcion}</Text>
                     <TouchableOpacity onPress={() => borrarCompra(c.id)}>
-                      <Ionicons name="trash-outline" size={14} color="#EF4444" />
+                      <Ionicons name="trash-outline" size={14} color={theme.danger} />
                     </TouchableOpacity>
                   </View>
                   <View style={styles.msiMetrics}>
@@ -276,7 +281,7 @@ export default function GastosScreen() {
           <>
             {cuotas.length === 0 ? (
               <View style={styles.emptyState}>
-                <Ionicons name="checkmark-circle-outline" size={48} color="#D1D5DB" />
+                <Ionicons name="checkmark-circle-outline" size={48} color={theme.border} />
                 <Text style={styles.emptyText}>Sin cuotas pendientes este mes</Text>
               </View>
             ) : cuotas.map((c: any) => (
@@ -306,7 +311,7 @@ export default function GastosScreen() {
           </TouchableOpacity>
         )}
         {tab === 'msi' && (
-          <TouchableOpacity style={[styles.bottomBtn, { backgroundColor: '#10B981' }]} onPress={() => setModalMSI(true)}>
+          <TouchableOpacity style={[styles.bottomBtn, { backgroundColor: theme.success }]} onPress={() => setModalMSI(true)}>
             <Ionicons name="add-circle-outline" size={22} color="#FFFFFF" />
             <Text style={styles.bottomBtnText}>Agregar compra MSI</Text>
           </TouchableOpacity>
@@ -319,26 +324,26 @@ export default function GastosScreen() {
       </View>
 
       {/* Modal gasto */}
-      <Modal visible={modalGasto} animationType="slide" presentationStyle="pageSheet">
+      <Modal visible={modalGasto} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setModalGasto(false)}>
         <View style={styles.modal}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Nuevo gasto</Text>
             <TouchableOpacity onPress={() => setModalGasto(false)}>
-              <Ionicons name="close" size={24} color="#6B7280" />
+              <Ionicons name="close" size={24} color={theme.textSecondary} />
             </TouchableOpacity>
           </View>
           <ScrollView style={styles.modalBody}>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Descripción</Text>
-              <TextInput style={styles.input} placeholder="Super, gasolina..." placeholderTextColor="#9CA3AF" value={formGasto.descripcion} onChangeText={v => setFormGasto(p => ({ ...p, descripcion: v }))} />
+              <TextInput style={styles.input} placeholder="Super, gasolina..." placeholderTextColor={theme.textSecondary} value={formGasto.descripcion} onChangeText={v => setFormGasto(p => ({ ...p, descripcion: v }))} />
             </View>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Monto ($)</Text>
-              <TextInput style={styles.input} placeholder="0.00" placeholderTextColor="#9CA3AF" keyboardType="decimal-pad" value={formGasto.monto} onChangeText={v => setFormGasto(p => ({ ...p, monto: v }))} />
+              <TextInput style={styles.input} placeholder="0.00" placeholderTextColor={theme.textSecondary} keyboardType="decimal-pad" value={formGasto.monto} onChangeText={v => setFormGasto(p => ({ ...p, monto: v }))} />
             </View>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Fecha</Text>
-              <TextInput style={styles.input} placeholder="YYYY-MM-DD" placeholderTextColor="#9CA3AF" value={formGasto.fecha} onChangeText={v => setFormGasto(p => ({ ...p, fecha: v }))} />
+              <TextInput style={styles.input} placeholder="YYYY-MM-DD" placeholderTextColor={theme.textSecondary} value={formGasto.fecha} onChangeText={v => setFormGasto(p => ({ ...p, fecha: v }))} />
             </View>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Tipo</Text>
@@ -444,26 +449,26 @@ export default function GastosScreen() {
       </Modal>
 
       {/* Modal editar gasto */}
-      <Modal visible={modalEditarGasto} animationType="slide" presentationStyle="pageSheet">
+      <Modal visible={modalEditarGasto} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setModalEditarGasto(false)}>
         <View style={styles.modal}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Editar gasto</Text>
             <TouchableOpacity onPress={() => setModalEditarGasto(false)}>
-              <Ionicons name="close" size={24} color="#6B7280" />
+              <Ionicons name="close" size={24} color={theme.textSecondary} />
             </TouchableOpacity>
           </View>
           <ScrollView style={styles.modalBody}>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Descripción</Text>
-              <TextInput style={styles.input} placeholder="Super, gasolina..." placeholderTextColor="#9CA3AF" value={formEditar.descripcion} onChangeText={v => setFormEditar(p => ({ ...p, descripcion: v }))} />
+              <TextInput style={styles.input} placeholder="Super, gasolina..." placeholderTextColor={theme.textSecondary} value={formEditar.descripcion} onChangeText={v => setFormEditar(p => ({ ...p, descripcion: v }))} />
             </View>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Monto ($)</Text>
-              <TextInput style={styles.input} placeholder="0.00" placeholderTextColor="#9CA3AF" keyboardType="decimal-pad" value={formEditar.monto} onChangeText={v => setFormEditar(p => ({ ...p, monto: v }))} />
+              <TextInput style={styles.input} placeholder="0.00" placeholderTextColor={theme.textSecondary} keyboardType="decimal-pad" value={formEditar.monto} onChangeText={v => setFormEditar(p => ({ ...p, monto: v }))} />
             </View>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Fecha</Text>
-              <TextInput style={styles.input} placeholder="YYYY-MM-DD" placeholderTextColor="#9CA3AF" value={formEditar.fecha} onChangeText={v => setFormEditar(p => ({ ...p, fecha: v }))} />
+              <TextInput style={styles.input} placeholder="YYYY-MM-DD" placeholderTextColor={theme.textSecondary} value={formEditar.fecha} onChangeText={v => setFormEditar(p => ({ ...p, fecha: v }))} />
             </View>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Categoría</Text>
@@ -484,22 +489,22 @@ export default function GastosScreen() {
       </Modal>
 
       {/* Modal MSI */}
-      <Modal visible={modalMSI} animationType="slide" presentationStyle="pageSheet">
+      <Modal visible={modalMSI} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setModalMSI(false)}>
         <View style={styles.modal}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Nueva compra MSI</Text>
             <TouchableOpacity onPress={() => setModalMSI(false)}>
-              <Ionicons name="close" size={24} color="#6B7280" />
+              <Ionicons name="close" size={24} color={theme.textSecondary} />
             </TouchableOpacity>
           </View>
           <ScrollView style={styles.modalBody}>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Descripción</Text>
-              <TextInput style={styles.input} placeholder="Laptop, celular..." placeholderTextColor="#9CA3AF" value={formMSI.descripcion} onChangeText={v => setFormMSI(p => ({ ...p, descripcion: v }))} />
+              <TextInput style={styles.input} placeholder="Laptop, celular..." placeholderTextColor={theme.textSecondary} value={formMSI.descripcion} onChangeText={v => setFormMSI(p => ({ ...p, descripcion: v }))} />
             </View>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Monto total ($)</Text>
-              <TextInput style={styles.input} placeholder="0.00" placeholderTextColor="#9CA3AF" keyboardType="decimal-pad" value={formMSI.monto_total} onChangeText={v => setFormMSI(p => ({ ...p, monto_total: v }))} />
+              <TextInput style={styles.input} placeholder="0.00" placeholderTextColor={theme.textSecondary} keyboardType="decimal-pad" value={formMSI.monto_total} onChangeText={v => setFormMSI(p => ({ ...p, monto_total: v }))} />
             </View>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Meses sin intereses</Text>
@@ -513,7 +518,7 @@ export default function GastosScreen() {
             </View>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Fecha de compra</Text>
-              <TextInput style={styles.input} placeholder="YYYY-MM-DD" placeholderTextColor="#9CA3AF" value={formMSI.fecha_compra} onChangeText={v => setFormMSI(p => ({ ...p, fecha_compra: v }))} />
+              <TextInput style={styles.input} placeholder="YYYY-MM-DD" placeholderTextColor={theme.textSecondary} value={formMSI.fecha_compra} onChangeText={v => setFormMSI(p => ({ ...p, fecha_compra: v }))} />
             </View>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Tarjeta</Text>
@@ -534,61 +539,61 @@ export default function GastosScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F9FAFB' },
-  tabs: { flexDirection: 'row', backgroundColor: '#FFFFFF', borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB' },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.background },
+  tabs: { flexDirection: 'row', backgroundColor: t.surface, borderBottomWidth: 0.5, borderBottomColor: t.border },
   tabBtn: { flex: 1, paddingVertical: 12, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
-  tabBtnActive: { borderBottomColor: '#4F46E5' },
-  tabText: { fontSize: 12, color: '#9CA3AF', fontWeight: '500' },
-  tabTextActive: { color: '#4F46E5' },
+  tabBtnActive: { borderBottomColor: t.primary },
+  tabText: { fontSize: 12, color: t.textSecondary, fontWeight: '500' },
+  tabTextActive: { color: t.primary },
   scroll: { padding: 16 },
   emptyState: { alignItems: 'center', padding: 40, gap: 8 },
-  emptyText: { fontSize: 14, color: '#9CA3AF' },
-  item: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 12, padding: 14, marginBottom: 8 },
+  emptyText: { fontSize: 14, color: t.textSecondary },
+  item: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: t.card, borderRadius: 12, padding: 14, marginBottom: 8 },
   itemLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
-  itemIcon: { width: 32, height: 32, borderRadius: 8, backgroundColor: '#EEF2FF', justifyContent: 'center', alignItems: 'center' },
-  itemTitle: { fontSize: 14, fontWeight: '500', color: '#111827' },
-  itemSub: { fontSize: 11, color: '#9CA3AF', marginTop: 2 },
-  itemTag: { fontSize: 11, color: '#6366F1', marginTop: 2 },
+  itemIcon: { width: 32, height: 32, borderRadius: 8, backgroundColor: t.primary + '18', justifyContent: 'center', alignItems: 'center' },
+  itemTitle: { fontSize: 14, fontWeight: '500', color: t.text },
+  itemSub: { fontSize: 11, color: t.textSecondary, marginTop: 2 },
+  itemTag: { fontSize: 11, color: t.secondary, marginTop: 2 },
   itemRight: { alignItems: 'flex-end', gap: 4 },
-  itemMonto: { fontSize: 15, fontWeight: '600', color: '#111827' },
-  msiCard: { backgroundColor: '#FFFFFF', borderRadius: 12, padding: 14, marginBottom: 8 },
+  itemMonto: { fontSize: 15, fontWeight: '600', color: t.text },
+  msiCard: { backgroundColor: t.card, borderRadius: 12, padding: 14, marginBottom: 8 },
   msiHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  msiTitle: { fontSize: 15, fontWeight: '600', color: '#111827' },
+  msiTitle: { fontSize: 15, fontWeight: '600', color: t.text },
   msiMetrics: { flexDirection: 'row', gap: 16, marginBottom: 6 },
   msiMetric: {},
-  msiMetricLabel: { fontSize: 11, color: '#9CA3AF' },
-  msiMetricValor: { fontSize: 14, fontWeight: '600', color: '#111827' },
-  msiSub: { fontSize: 11, color: '#9CA3AF' },
-  cuotaItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 12, padding: 14, marginBottom: 8 },
+  msiMetricLabel: { fontSize: 11, color: t.textSecondary },
+  msiMetricValor: { fontSize: 14, fontWeight: '600', color: t.text },
+  msiSub: { fontSize: 11, color: t.textSecondary },
+  cuotaItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: t.card, borderRadius: 12, padding: 14, marginBottom: 8 },
   cuotaRight: { alignItems: 'flex-end', gap: 6 },
-  pagarBtn: { backgroundColor: '#10B981', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 4 },
+  pagarBtn: { backgroundColor: t.success, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 4 },
   pagarBtnText: { color: '#FFFFFF', fontSize: 12, fontWeight: '600' },
-  bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, paddingBottom: 24, backgroundColor: '#FFFFFF', borderTopWidth: 0.5, borderTopColor: '#E5E7EB' },
-  bottomBtn: { backgroundColor: '#4F46E5', borderRadius: 14, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, paddingBottom: 24, backgroundColor: t.surface, borderTopWidth: 0.5, borderTopColor: t.border },
+  bottomBtn: { backgroundColor: t.primary, borderRadius: 14, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   bottomBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
-  bottomBtnDisabled: { backgroundColor: '#F3F4F6', borderRadius: 14, padding: 16, alignItems: 'center' },
-  bottomBtnDisabledText: { color: '#9CA3AF', fontSize: 14 },
-  modal: { flex: 1, backgroundColor: '#FFFFFF' },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 60, borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB' },
-  modalTitle: { fontSize: 18, fontWeight: '600', color: '#111827' },
+  bottomBtnDisabled: { backgroundColor: t.background, borderRadius: 14, padding: 16, alignItems: 'center' },
+  bottomBtnDisabledText: { color: t.textSecondary, fontSize: 14 },
+  modal: { flex: 1, backgroundColor: t.surface },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 60, borderBottomWidth: 0.5, borderBottomColor: t.border },
+  modalTitle: { fontSize: 18, fontWeight: '600', color: t.text },
   modalBody: { padding: 20 },
   formGroup: { marginBottom: 16 },
-  formLabel: { fontSize: 13, color: '#374151', fontWeight: '500', marginBottom: 6 },
-  input: { backgroundColor: '#F9FAFB', borderWidth: 0.5, borderColor: '#D1D5DB', borderRadius: 10, padding: 12, fontSize: 15, color: '#111827' },
+  formLabel: { fontSize: 13, color: t.text, fontWeight: '500', marginBottom: 6 },
+  input: { backgroundColor: t.background, borderWidth: 0.5, borderColor: t.border, borderRadius: 10, padding: 12, fontSize: 15, color: t.text },
   toggleRow: { flexDirection: 'row', gap: 8 },
-  toggleBtn: { flex: 1, padding: 10, borderRadius: 8, backgroundColor: '#F3F4F6', alignItems: 'center' },
-  toggleBtnActive: { backgroundColor: '#EEF2FF' },
-  toggleText: { fontSize: 14, color: '#6B7280' },
-  toggleTextActive: { color: '#4F46E5', fontWeight: '600' },
-  selectorItem: { padding: 12, borderRadius: 8, backgroundColor: '#F9FAFB', marginBottom: 6, borderWidth: 0.5, borderColor: '#E5E7EB' },
-  selectorItemActive: { backgroundColor: '#EEF2FF', borderColor: '#6366F1' },
-  selectorText: { fontSize: 14, color: '#374151' },
+  toggleBtn: { flex: 1, padding: 10, borderRadius: 8, backgroundColor: t.background, alignItems: 'center' },
+  toggleBtnActive: { backgroundColor: t.primary + '18' },
+  toggleText: { fontSize: 14, color: t.textSecondary },
+  toggleTextActive: { color: t.primary, fontWeight: '600' },
+  selectorItem: { padding: 12, borderRadius: 8, backgroundColor: t.background, marginBottom: 6, borderWidth: 0.5, borderColor: t.border },
+  selectorItemActive: { backgroundColor: t.primary + '18', borderColor: t.primary },
+  selectorText: { fontSize: 14, color: t.text },
   chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: '#F3F4F6', borderWidth: 0.5, borderColor: '#E5E7EB' },
-  chipActive: { backgroundColor: '#EEF2FF', borderColor: '#6366F1' },
-  chipText: { fontSize: 12, color: '#6B7280' },
-  chipTextActive: { color: '#4F46E5', fontWeight: '600' },
-  saveBtn: { backgroundColor: '#4F46E5', borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 8 },
+  chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: t.background, borderWidth: 0.5, borderColor: t.border },
+  chipActive: { backgroundColor: t.primary + '18', borderColor: t.primary },
+  chipText: { fontSize: 12, color: t.textSecondary },
+  chipTextActive: { color: t.primary, fontWeight: '600' },
+  saveBtn: { backgroundColor: t.primary, borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 8 },
   saveBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
 });

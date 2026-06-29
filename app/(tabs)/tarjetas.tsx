@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, ScrollView, StyleSheet,
   TouchableOpacity, Modal, TextInput,
@@ -16,6 +16,8 @@ import { obtenerCuentasLiquidez, crearMovimiento } from '../../database/queries/
 import { formatMXN, hoy } from '../../database';
 import { TarjetaConVersion, CuentaLiquidez } from '../../types';
 import Header from '../../components/Header';
+import { useTheme } from '../../theme/ThemeContext';
+import { ThemeColors } from '../../theme/colors';
 
 const MESES_CORTOS = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 function fmtFecha(iso: string) {
@@ -37,6 +39,9 @@ const FORM_INICIAL = {
 type PagoModal = { periodoId: string; tarjetaId: string; saldo: number };
 
 export default function TarjetasScreen() {
+  const { theme } = useTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
+
   const [tarjetas, setTarjetas] = useState<TarjetaConVersion[]>([]);
   const [saldos, setSaldos] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
@@ -181,7 +186,7 @@ export default function TarjetasScreen() {
   if (loading) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <Text style={{ color: '#6B7280', fontSize: 16 }}>Cargando...</Text>
+        <Text style={{ color: theme.textSecondary, fontSize: 16 }}>Cargando...</Text>
       </View>
     );
   }
@@ -196,7 +201,7 @@ export default function TarjetasScreen() {
       >
         {tarjetas.length === 0 ? (
           <View style={styles.emptyState}>
-            <Ionicons name="card-outline" size={48} color="#D1D5DB" />
+            <Ionicons name="card-outline" size={48} color={theme.border} />
             <Text style={styles.emptyTitle}>Sin tarjetas</Text>
             <Text style={styles.emptyText}>Agrega tu primera tarjeta tocando el botón de abajo</Text>
           </View>
@@ -204,8 +209,8 @@ export default function TarjetasScreen() {
           tarjetas.map(t => {
             const saldo = saldos[t.tarjeta_id] ?? 0;
             const pct = t.limite_credito > 0 ? (saldo / t.limite_credito) * 100 : 0;
-            const color = COLOR_MAP[t.color] ?? '#6366F1';
-            const barColor = pct > 70 ? '#EF4444' : pct > 40 ? '#F59E0B' : '#10B981';
+            const color = COLOR_MAP[t.color] ?? theme.secondary;
+            const barColor = pct > 70 ? theme.danger : pct > 40 ? theme.warning : theme.success;
             const expandido = expandidos.has(t.tarjeta_id);
             const ps = periodos[t.tarjeta_id] ?? [];
             const primerCerradoId = ps.find(p => p.fecha_corte < hoyStr && p.estado !== 'pagado')?.id;
@@ -222,10 +227,10 @@ export default function TarjetasScreen() {
                   </View>
                   <View style={styles.cardActions}>
                     <TouchableOpacity onPress={() => abrirEditar(t)} style={styles.iconBtn}>
-                      <Ionicons name="pencil-outline" size={16} color="#6B7280" />
+                      <Ionicons name="pencil-outline" size={16} color={theme.textSecondary} />
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => eliminar(t.tarjeta_id, t.nombre)} style={styles.iconBtn}>
-                      <Ionicons name="trash-outline" size={16} color="#EF4444" />
+                      <Ionicons name="trash-outline" size={16} color={theme.danger} />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -257,7 +262,7 @@ export default function TarjetasScreen() {
 
                 <TouchableOpacity style={styles.expandBtn} onPress={() => toggleExpand(t.tarjeta_id)}>
                   <Text style={styles.expandBtnText}>Periodos</Text>
-                  <Ionicons name={expandido ? 'chevron-up' : 'chevron-down'} size={14} color="#6366F1" />
+                  <Ionicons name={expandido ? 'chevron-up' : 'chevron-down'} size={14} color={theme.secondary} />
                 </TouchableOpacity>
 
                 {expandido && (
@@ -271,7 +276,7 @@ export default function TarjetasScreen() {
                       const esPrimerCerrado = p.id === primerCerradoId;
 
                       const estadoLabel = esPagado ? 'Pagado' : esActual ? 'Abierto' : 'Cerrado';
-                      const estadoColor = esPagado ? '#10B981' : esActual ? '#3B82F6' : '#F59E0B';
+                      const estadoColor = esPagado ? theme.success : esActual ? theme.primary : theme.warning;
 
                       return (
                         <View key={p.id} style={[styles.periodoRow, esCerrado && styles.periodoRowCerrado]}>
@@ -290,7 +295,7 @@ export default function TarjetasScreen() {
                             <Text style={styles.periodoVence}>Vence en {p.dias_para_vencer} días</Text>
                           )}
                           {esCerrado && p.dias_para_vencer <= 0 && (
-                            <Text style={[styles.periodoVence, { color: '#EF4444' }]}>
+                            <Text style={[styles.periodoVence, { color: theme.danger }]}>
                               Venció hace {Math.abs(p.dias_para_vencer)} días
                             </Text>
                           )}
@@ -326,18 +331,18 @@ export default function TarjetasScreen() {
       </View>
 
       {/* Modal crear/editar tarjeta */}
-      <Modal visible={modalVisible} animationType="slide" presentationStyle="pageSheet">
+      <Modal visible={modalVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setModalVisible(false)}>
         <View style={styles.modal}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>{editando ? 'Editar tarjeta' : 'Nueva tarjeta'}</Text>
             <TouchableOpacity onPress={() => setModalVisible(false)}>
-              <Ionicons name="close" size={24} color="#6B7280" />
+              <Ionicons name="close" size={24} color={theme.textSecondary} />
             </TouchableOpacity>
           </View>
           <ScrollView style={styles.modalBody}>
             <View style={styles.switchRow}>
               <Text style={styles.switchLabel}>Tarjeta departamental</Text>
-              <Switch value={esDepartamental} onValueChange={setEsDepartamental} trackColor={{ true: '#6366F1' }} />
+              <Switch value={esDepartamental} onValueChange={setEsDepartamental} trackColor={{ true: theme.secondary }} />
             </View>
             {[
               { label: 'Banco / Tienda', key: 'banco', placeholder: 'BBVA, Liverpool...' },
@@ -353,7 +358,7 @@ export default function TarjetasScreen() {
                 <TextInput
                   style={styles.input}
                   placeholder={f.placeholder}
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor={theme.textSecondary}
                   value={form[f.key as keyof typeof form]}
                   onChangeText={v => setForm(p => ({ ...p, [f.key]: v }))}
                   keyboardType={f.keyboardType}
@@ -381,12 +386,12 @@ export default function TarjetasScreen() {
       </Modal>
 
       {/* Modal registrar pago */}
-      <Modal visible={!!pagoModal} animationType="slide" presentationStyle="pageSheet">
+      <Modal visible={!!pagoModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={cerrarPagoModal}>
         <View style={styles.modal}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Registrar pago</Text>
             <TouchableOpacity onPress={cerrarPagoModal}>
-              <Ionicons name="close" size={24} color="#6B7280" />
+              <Ionicons name="close" size={24} color={theme.textSecondary} />
             </TouchableOpacity>
           </View>
           <ScrollView style={styles.modalBody}>
@@ -395,7 +400,7 @@ export default function TarjetasScreen() {
               <TextInput
                 style={styles.input}
                 placeholder={pagoModal ? String(pagoModal.saldo) : '0'}
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={theme.textSecondary}
                 value={pagoMonto}
                 onChangeText={setPagoMonto}
                 keyboardType="decimal-pad"
@@ -431,62 +436,62 @@ export default function TarjetasScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F9FAFB' },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.background },
   scroll: { padding: 16 },
   emptyState: { alignItems: 'center', padding: 40, gap: 8 },
-  emptyTitle: { fontSize: 16, fontWeight: '500', color: '#6B7280' },
-  emptyText: { fontSize: 13, color: '#9CA3AF', textAlign: 'center' },
-  card: { backgroundColor: '#FFFFFF', borderRadius: 14, padding: 16, marginBottom: 12, borderLeftWidth: 4 },
+  emptyTitle: { fontSize: 16, fontWeight: '500', color: t.textSecondary },
+  emptyText: { fontSize: 13, color: t.textSecondary, textAlign: 'center' },
+  card: { backgroundColor: t.card, borderRadius: 14, padding: 16, marginBottom: 12, borderLeftWidth: 4 },
   cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 14, gap: 10 },
   cardIconBg: { width: 40, height: 40, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
   cardInfo: { flex: 1 },
-  cardNombre: { fontSize: 15, fontWeight: '600', color: '#111827' },
-  cardBanco: { fontSize: 12, color: '#6B7280', marginTop: 2 },
+  cardNombre: { fontSize: 15, fontWeight: '600', color: t.text },
+  cardBanco: { fontSize: 12, color: t.textSecondary, marginTop: 2 },
   cardActions: { flexDirection: 'row', gap: 4 },
   iconBtn: { padding: 6 },
   cardMetrics: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 12 },
   metric: { minWidth: '40%' },
-  metricLabel: { fontSize: 11, color: '#9CA3AF' },
-  metricValor: { fontSize: 14, fontWeight: '600', color: '#111827', marginTop: 2 },
-  progressBg: { height: 6, backgroundColor: '#F3F4F6', borderRadius: 3, overflow: 'hidden', marginBottom: 6 },
+  metricLabel: { fontSize: 11, color: t.textSecondary },
+  metricValor: { fontSize: 14, fontWeight: '600', color: t.text, marginTop: 2 },
+  progressBg: { height: 6, backgroundColor: t.background, borderRadius: 3, overflow: 'hidden', marginBottom: 6 },
   progressFill: { height: '100%', borderRadius: 3 },
-  pctText: { fontSize: 11, color: '#9CA3AF' },
-  tasaText: { fontSize: 11, color: '#9CA3AF', marginTop: 2 },
-  expandBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: 12, paddingTop: 10, borderTopWidth: 0.5, borderTopColor: '#E5E7EB' },
-  expandBtnText: { fontSize: 13, color: '#6366F1', fontWeight: '500' },
+  pctText: { fontSize: 11, color: t.textSecondary },
+  tasaText: { fontSize: 11, color: t.textSecondary, marginTop: 2 },
+  expandBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: 12, paddingTop: 10, borderTopWidth: 0.5, borderTopColor: t.border },
+  expandBtnText: { fontSize: 13, color: t.secondary, fontWeight: '500' },
   periodosWrap: { marginTop: 10, gap: 8 },
-  periodoRow: { backgroundColor: '#F9FAFB', borderRadius: 10, padding: 12, gap: 6 },
-  periodoRowCerrado: { borderWidth: 1, borderColor: '#FDE68A' },
+  periodoRow: { backgroundColor: t.background, borderRadius: 10, padding: 12, gap: 6 },
+  periodoRowCerrado: { borderWidth: 1, borderColor: t.warning + '40' },
   periodoTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   estadoBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   estadoText: { fontSize: 11, fontWeight: '600' },
-  periodoSaldo: { fontSize: 15, fontWeight: '700', color: '#111827' },
-  periodoFechaLabel: { fontSize: 12, color: '#374151' },
-  periodoVence: { fontSize: 11, color: '#D97706' },
-  periodoVacio: { fontSize: 12, color: '#9CA3AF', textAlign: 'center', padding: 8 },
-  pagarBtn: { backgroundColor: '#4F46E5', borderRadius: 8, padding: 10, alignItems: 'center', marginTop: 4 },
+  periodoSaldo: { fontSize: 15, fontWeight: '700', color: t.text },
+  periodoFechaLabel: { fontSize: 12, color: t.text },
+  periodoVence: { fontSize: 11, color: t.warning },
+  periodoVacio: { fontSize: 12, color: t.textSecondary, textAlign: 'center', padding: 8 },
+  pagarBtn: { backgroundColor: t.primary, borderRadius: 8, padding: 10, alignItems: 'center', marginTop: 4 },
   pagarBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
-  bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, paddingBottom: 24, backgroundColor: '#FFFFFF', borderTopWidth: 0.5, borderTopColor: '#E5E7EB' },
-  bottomBtn: { backgroundColor: '#4F46E5', borderRadius: 14, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, paddingBottom: 24, backgroundColor: t.surface, borderTopWidth: 0.5, borderTopColor: t.border },
+  bottomBtn: { backgroundColor: t.primary, borderRadius: 14, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   bottomBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
-  modal: { flex: 1, backgroundColor: '#FFFFFF' },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 60, borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB' },
-  modalTitle: { fontSize: 18, fontWeight: '600', color: '#111827' },
+  modal: { flex: 1, backgroundColor: t.surface },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 60, borderBottomWidth: 0.5, borderBottomColor: t.border },
+  modalTitle: { fontSize: 18, fontWeight: '600', color: t.text },
   modalBody: { padding: 20 },
-  switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, backgroundColor: '#F9FAFB', padding: 14, borderRadius: 10 },
-  switchLabel: { fontSize: 14, color: '#374151' },
+  switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, backgroundColor: t.background, padding: 14, borderRadius: 10 },
+  switchLabel: { fontSize: 14, color: t.text },
   formGroup: { marginBottom: 16 },
-  formLabel: { fontSize: 13, color: '#374151', fontWeight: '500', marginBottom: 6 },
-  input: { backgroundColor: '#F9FAFB', borderWidth: 0.5, borderColor: '#D1D5DB', borderRadius: 10, padding: 12, fontSize: 15, color: '#111827' },
+  formLabel: { fontSize: 13, color: t.text, fontWeight: '500', marginBottom: 6 },
+  input: { backgroundColor: t.background, borderWidth: 0.5, borderColor: t.border, borderRadius: 10, padding: 12, fontSize: 15, color: t.text },
   coloresRow: { flexDirection: 'row', gap: 12, marginTop: 8, marginBottom: 24 },
   colorDot: { width: 28, height: 28, borderRadius: 14 },
-  colorDotSelected: { borderWidth: 3, borderColor: '#111827' },
-  saveBtn: { backgroundColor: '#4F46E5', borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 8 },
+  colorDotSelected: { borderWidth: 3, borderColor: t.text },
+  saveBtn: { backgroundColor: t.primary, borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 8 },
   saveBtnDisabled: { opacity: 0.4 },
   saveBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
-  cuentaOption: { backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 10, padding: 12, marginBottom: 8 },
-  cuentaOptionSelected: { borderColor: '#4F46E5', backgroundColor: '#EEF2FF' },
-  cuentaOptionText: { fontSize: 14, color: '#374151' },
-  cuentaOptionTextSelected: { color: '#4F46E5', fontWeight: '600' },
+  cuentaOption: { backgroundColor: t.background, borderWidth: 1, borderColor: t.border, borderRadius: 10, padding: 12, marginBottom: 8 },
+  cuentaOptionSelected: { borderColor: t.primary, backgroundColor: t.primary + '18' },
+  cuentaOptionText: { fontSize: 14, color: t.text },
+  cuentaOptionTextSelected: { color: t.primary, fontWeight: '600' },
 });

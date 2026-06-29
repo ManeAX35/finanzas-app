@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, ScrollView, StyleSheet,
   TouchableOpacity, Modal, TextInput,
@@ -16,6 +16,8 @@ import {
 import { obtenerCuentasLiquidez } from '../../database/queries/liquidez';
 import { formatMXN, hoy } from '../../database';
 import Header from '../../components/Header';
+import { useTheme } from '../../theme/ThemeContext';
+import { ThemeColors } from '../../theme/colors';
 
 const FRECUENCIAS = ['diario', 'mensual', 'trimestral', 'al_vencimiento'];
 
@@ -26,6 +28,9 @@ const FORM_INICIAL = {
 };
 
 export default function InversionesScreen() {
+  const { theme } = useTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
+
   const [cuentas, setCuentas] = useState<any[]>([]);
   const [cuentasLiquidez, setCuentasLiquidezState] = useState<any[]>([]);
   const [rendimientos, setRendimientos] = useState<Record<string, any>>({});
@@ -51,7 +56,6 @@ export default function InversionesScreen() {
       ]);
       setCuentas(lista);
       setCuentasLiquidezState(liquidez);
-
       const rends: Record<string, any> = {};
       const movs: Record<string, any[]> = {};
       for (const c of lista) {
@@ -88,26 +92,17 @@ export default function InversionesScreen() {
       setModalNueva(false);
       setForm(FORM_INICIAL);
       cargarDatos();
-    } catch (e) {
-      Alert.alert('Error', String(e));
-    }
+    } catch (e) { Alert.alert('Error', String(e)); }
   };
 
   const guardarMovimiento = async () => {
     if (!formMov.monto || !cuentaSeleccionada) return;
     try {
-      await registrarMovimientoInversion(
-        cuentaSeleccionada,
-        formMov.tipo as any,
-        parseFloat(formMov.monto),
-        formMov.notas || undefined
-      );
+      await registrarMovimientoInversion(cuentaSeleccionada, formMov.tipo as any, parseFloat(formMov.monto), formMov.notas || undefined);
       setModalMovimiento(false);
       setFormMov({ tipo: 'deposito', monto: '', notas: '' });
       cargarDatos();
-    } catch (e) {
-      Alert.alert('Error', String(e));
-    }
+    } catch (e) { Alert.alert('Error', String(e)); }
   };
 
   const guardarNuevaTasa = async () => {
@@ -117,9 +112,7 @@ export default function InversionesScreen() {
       setModalTasa(false);
       setNuevaTasa('');
       cargarDatos();
-    } catch (e) {
-      Alert.alert('Error', String(e));
-    }
+    } catch (e) { Alert.alert('Error', String(e)); }
   };
 
   const guardarTransferencia = async () => {
@@ -129,26 +122,14 @@ export default function InversionesScreen() {
     }
     try {
       if (tipoTransferencia === 'cuentaAInversion') {
-        await transferirCuentaAInversion(
-          formTransferencia.cuenta_liquidez_id,
-          cuentaSeleccionada,
-          parseFloat(formTransferencia.monto),
-          formTransferencia.notas || undefined
-        );
+        await transferirCuentaAInversion(formTransferencia.cuenta_liquidez_id, cuentaSeleccionada, parseFloat(formTransferencia.monto), formTransferencia.notas || undefined);
       } else {
-        await transferirInversionACuenta(
-          cuentaSeleccionada,
-          formTransferencia.cuenta_liquidez_id,
-          parseFloat(formTransferencia.monto),
-          formTransferencia.notas || undefined
-        );
+        await transferirInversionACuenta(cuentaSeleccionada, formTransferencia.cuenta_liquidez_id, parseFloat(formTransferencia.monto), formTransferencia.notas || undefined);
       }
       setModalTransferencia(false);
       setFormTransferencia({ monto: '', cuenta_liquidez_id: '', notas: '' });
       cargarDatos();
-    } catch (e) {
-      Alert.alert('Error', String(e));
-    }
+    } catch (e) { Alert.alert('Error', String(e)); }
   };
 
   const eliminarMov = (id: string) => {
@@ -161,10 +142,7 @@ export default function InversionesScreen() {
   const eliminar = (id: string, nombre: string) => {
     Alert.alert('Eliminar', `¿Eliminar ${nombre}?`, [
       { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Eliminar', style: 'destructive',
-        onPress: async () => { await eliminarCuentaInversion(id); cargarDatos(); }
-      },
+      { text: 'Eliminar', style: 'destructive', onPress: async () => { await eliminarCuentaInversion(id); cargarDatos(); } },
     ]);
   };
 
@@ -189,7 +167,7 @@ export default function InversionesScreen() {
       >
         {cuentas.length === 0 ? (
           <View style={styles.emptyState}>
-            <Ionicons name="trending-up-outline" size={48} color="#D1D5DB" />
+            <Ionicons name="trending-up-outline" size={48} color={theme.border} />
             <Text style={styles.emptyTitle}>Sin inversiones</Text>
             <Text style={styles.emptyText}>Agrega tus cuentas de inversión para ver su rendimiento</Text>
           </View>
@@ -203,7 +181,7 @@ export default function InversionesScreen() {
               <TouchableOpacity onPress={() => setExpandida(isExpanded ? null : c.id)}>
                 <View style={styles.cardHeader}>
                   <View style={styles.cardIcon}>
-                    <Ionicons name="trending-up-outline" size={20} color="#6366F1" />
+                    <Ionicons name="trending-up-outline" size={20} color={theme.secondary} />
                   </View>
                   <View style={styles.cardInfo}>
                     <Text style={styles.cardNombre}>{c.nombre}</Text>
@@ -221,13 +199,13 @@ export default function InversionesScreen() {
                   <View style={styles.expandedMetrics}>
                     <View style={styles.expandedMetric}>
                       <Text style={styles.expandedLabel}>Rendimiento acumulado</Text>
-                      <Text style={[styles.expandedValor, { color: rendAcumulado >= 0 ? '#10B981' : '#EF4444' }]}>
+                      <Text style={[styles.expandedValor, { color: rendAcumulado >= 0 ? theme.success : theme.danger }]}>
                         +{formatMXN(rendAcumulado)}
                       </Text>
                     </View>
                     <View style={styles.expandedMetric}>
                       <Text style={styles.expandedLabel}>Rendimiento hoy</Text>
-                      <Text style={[styles.expandedValor, { color: '#10B981' }]}>+{formatMXN(rend?.rendimientoHoy ?? 0)}</Text>
+                      <Text style={[styles.expandedValor, { color: theme.success }]}>+{formatMXN(rend?.rendimientoHoy ?? 0)}</Text>
                     </View>
                     <View style={styles.expandedMetric}>
                       <Text style={styles.expandedLabel}>Frecuencia</Text>
@@ -241,12 +219,12 @@ export default function InversionesScreen() {
 
                   <View style={styles.expandedActions}>
                     <TouchableOpacity style={styles.actionBtn} onPress={() => { setCuentaSeleccionada(c.id); setFormMov({ ...formMov, tipo: 'deposito' }); setModalMovimiento(true); }}>
-                      <Ionicons name="arrow-down-outline" size={14} color="#10B981" />
-                      <Text style={[styles.actionText, { color: '#10B981' }]}>Depositar</Text>
+                      <Ionicons name="arrow-down-outline" size={14} color={theme.success} />
+                      <Text style={[styles.actionText, { color: theme.success }]}>Depositar</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.actionBtn} onPress={() => { setCuentaSeleccionada(c.id); setFormMov({ ...formMov, tipo: 'retiro' }); setModalMovimiento(true); }}>
-                      <Ionicons name="arrow-up-outline" size={14} color="#EF4444" />
-                      <Text style={[styles.actionText, { color: '#EF4444' }]}>Retirar</Text>
+                      <Ionicons name="arrow-up-outline" size={14} color={theme.danger} />
+                      <Text style={[styles.actionText, { color: theme.danger }]}>Retirar</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.actionBtn} onPress={() => { setCuentaSeleccionada(c.id); setTipoTransferencia('cuentaAInversion'); setFormTransferencia({ monto: '', cuenta_liquidez_id: '', notas: '' }); setModalTransferencia(true); }}>
                       <Ionicons name="arrow-down-circle-outline" size={14} color="#3B82F6" />
@@ -257,12 +235,12 @@ export default function InversionesScreen() {
                       <Text style={[styles.actionText, { color: '#F97316' }]}>A cuenta</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.actionBtn} onPress={() => { setCuentaSeleccionada(c.id); setNuevaTasa(String(c.tasa_anual)); setModalTasa(true); }}>
-                      <Ionicons name="pencil-outline" size={14} color="#6366F1" />
-                      <Text style={[styles.actionText, { color: '#6366F1' }]}>Editar tasa</Text>
+                      <Ionicons name="pencil-outline" size={14} color={theme.secondary} />
+                      <Text style={[styles.actionText, { color: theme.secondary }]}>Editar tasa</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.actionBtn} onPress={() => eliminar(c.id, c.nombre)}>
-                      <Ionicons name="trash-outline" size={14} color="#9CA3AF" />
-                      <Text style={[styles.actionText, { color: '#9CA3AF' }]}>Eliminar</Text>
+                      <Ionicons name="trash-outline" size={14} color={theme.textSecondary} />
+                      <Text style={[styles.actionText, { color: theme.textSecondary }]}>Eliminar</Text>
                     </TouchableOpacity>
                   </View>
 
@@ -275,17 +253,17 @@ export default function InversionesScreen() {
                             <Ionicons
                               name={m.tipo === 'deposito' ? 'arrow-down-circle-outline' : m.tipo === 'retiro' ? 'arrow-up-circle-outline' : 'star-outline'}
                               size={14}
-                              color={m.tipo === 'deposito' ? '#10B981' : m.tipo === 'retiro' ? '#EF4444' : '#6366F1'}
+                              color={m.tipo === 'deposito' ? theme.success : m.tipo === 'retiro' ? theme.danger : theme.secondary}
                             />
                             <Text style={styles.movTipo}>{m.tipo}</Text>
                             <Text style={styles.movFecha}>{m.fecha}</Text>
                           </View>
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                            <Text style={[styles.movMonto, { color: m.tipo === 'retiro' ? '#EF4444' : '#10B981' }]}>
+                            <Text style={[styles.movMonto, { color: m.tipo === 'retiro' ? theme.danger : theme.success }]}>
                               {m.tipo === 'retiro' ? '−' : '+'}{formatMXN(m.monto)}
                             </Text>
                             <TouchableOpacity onPress={() => eliminarMov(m.id)}>
-                              <Ionicons name="trash-outline" size={12} color="#EF4444" />
+                              <Ionicons name="trash-outline" size={12} color={theme.danger} />
                             </TouchableOpacity>
                           </View>
                         </View>
@@ -307,13 +285,12 @@ export default function InversionesScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Modal nueva cuenta */}
-      <Modal visible={modalNueva} animationType="slide" presentationStyle="pageSheet">
+      <Modal visible={modalNueva} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setModalNueva(false)}>
         <View style={styles.modal}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Nueva inversión</Text>
             <TouchableOpacity onPress={() => setModalNueva(false)}>
-              <Ionicons name="close" size={24} color="#6B7280" />
+              <Ionicons name="close" size={24} color={theme.textSecondary} />
             </TouchableOpacity>
           </View>
           <ScrollView style={styles.modalBody}>
@@ -329,7 +306,7 @@ export default function InversionesScreen() {
                 <TextInput
                   style={styles.input}
                   placeholder={f.placeholder}
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor={theme.textSecondary}
                   keyboardType={f.keyboardType}
                   value={form[f.key as keyof typeof form]}
                   onChangeText={v => setForm(p => ({ ...p, [f.key]: v }))}
@@ -340,11 +317,7 @@ export default function InversionesScreen() {
               <Text style={styles.formLabel}>Frecuencia de rendimiento</Text>
               <View style={styles.chipsRow}>
                 {FRECUENCIAS.map(f => (
-                  <TouchableOpacity
-                    key={f}
-                    style={[styles.chip, form.frecuencia_rendimiento === f && styles.chipActive]}
-                    onPress={() => setForm(p => ({ ...p, frecuencia_rendimiento: f }))}
-                  >
+                  <TouchableOpacity key={f} style={[styles.chip, form.frecuencia_rendimiento === f && styles.chipActive]} onPress={() => setForm(p => ({ ...p, frecuencia_rendimiento: f }))}>
                     <Text style={[styles.chipText, form.frecuencia_rendimiento === f && styles.chipTextActive]}>{f}</Text>
                   </TouchableOpacity>
                 ))}
@@ -358,23 +331,22 @@ export default function InversionesScreen() {
         </View>
       </Modal>
 
-      {/* Modal movimiento */}
-      <Modal visible={modalMovimiento} animationType="slide" presentationStyle="pageSheet">
+      <Modal visible={modalMovimiento} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setModalMovimiento(false)}>
         <View style={styles.modal}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>{formMov.tipo === 'deposito' ? 'Depositar' : 'Retirar'}</Text>
             <TouchableOpacity onPress={() => setModalMovimiento(false)}>
-              <Ionicons name="close" size={24} color="#6B7280" />
+              <Ionicons name="close" size={24} color={theme.textSecondary} />
             </TouchableOpacity>
           </View>
           <View style={styles.modalBody}>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Monto ($)</Text>
-              <TextInput style={styles.input} placeholder="0.00" placeholderTextColor="#9CA3AF" keyboardType="decimal-pad" value={formMov.monto} onChangeText={v => setFormMov(p => ({ ...p, monto: v }))} />
+              <TextInput style={styles.input} placeholder="0.00" placeholderTextColor={theme.textSecondary} keyboardType="decimal-pad" value={formMov.monto} onChangeText={v => setFormMov(p => ({ ...p, monto: v }))} />
             </View>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Notas (opcional)</Text>
-              <TextInput style={styles.input} placeholder="Razón del movimiento..." placeholderTextColor="#9CA3AF" value={formMov.notas} onChangeText={v => setFormMov(p => ({ ...p, notas: v }))} />
+              <TextInput style={styles.input} placeholder="Razón del movimiento..." placeholderTextColor={theme.textSecondary} value={formMov.notas} onChangeText={v => setFormMov(p => ({ ...p, notas: v }))} />
             </View>
             <TouchableOpacity style={styles.saveBtn} onPress={guardarMovimiento}>
               <Text style={styles.saveBtnText}>Confirmar</Text>
@@ -383,20 +355,19 @@ export default function InversionesScreen() {
         </View>
       </Modal>
 
-      {/* Modal tasa */}
-      <Modal visible={modalTasa} animationType="slide" presentationStyle="pageSheet">
+      <Modal visible={modalTasa} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setModalTasa(false)}>
         <View style={styles.modal}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Actualizar tasa</Text>
             <TouchableOpacity onPress={() => setModalTasa(false)}>
-              <Ionicons name="close" size={24} color="#6B7280" />
+              <Ionicons name="close" size={24} color={theme.textSecondary} />
             </TouchableOpacity>
           </View>
           <View style={styles.modalBody}>
             <Text style={styles.modalInfo}>Al cambiar la tasa se cerrará la versión actual y se abrirá una nueva. El historial queda guardado.</Text>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Nueva tasa anual (%)</Text>
-              <TextInput style={styles.input} placeholder="11.5" placeholderTextColor="#9CA3AF" keyboardType="decimal-pad" value={nuevaTasa} onChangeText={setNuevaTasa} />
+              <TextInput style={styles.input} placeholder="11.5" placeholderTextColor={theme.textSecondary} keyboardType="decimal-pad" value={nuevaTasa} onChangeText={setNuevaTasa} />
             </View>
             <TouchableOpacity style={styles.saveBtn} onPress={guardarNuevaTasa}>
               <Text style={styles.saveBtnText}>Actualizar tasa (SCD 2)</Text>
@@ -405,15 +376,14 @@ export default function InversionesScreen() {
         </View>
       </Modal>
 
-      {/* Modal transferencia cruzada */}
-      <Modal visible={modalTransferencia} animationType="slide" presentationStyle="pageSheet">
+      <Modal visible={modalTransferencia} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setModalTransferencia(false)}>
         <View style={styles.modal}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>
               {tipoTransferencia === 'cuentaAInversion' ? 'Cuenta → Inversión' : 'Inversión → Cuenta'}
             </Text>
             <TouchableOpacity onPress={() => setModalTransferencia(false)}>
-              <Ionicons name="close" size={24} color="#6B7280" />
+              <Ionicons name="close" size={24} color={theme.textSecondary} />
             </TouchableOpacity>
           </View>
           <ScrollView style={styles.modalBody}>
@@ -424,40 +394,21 @@ export default function InversionesScreen() {
             </Text>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Monto ($)</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="0.00"
-                placeholderTextColor="#9CA3AF"
-                keyboardType="decimal-pad"
-                value={formTransferencia.monto}
-                onChangeText={v => setFormTransferencia(p => ({ ...p, monto: v }))}
-              />
+              <TextInput style={styles.input} placeholder="0.00" placeholderTextColor={theme.textSecondary} keyboardType="decimal-pad" value={formTransferencia.monto} onChangeText={v => setFormTransferencia(p => ({ ...p, monto: v }))} />
             </View>
             <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>
-                {tipoTransferencia === 'cuentaAInversion' ? 'Cuenta origen' : 'Cuenta destino'}
-              </Text>
+              <Text style={styles.formLabel}>{tipoTransferencia === 'cuentaAInversion' ? 'Cuenta origen' : 'Cuenta destino'}</Text>
               {cuentasLiquidez.length === 0 ? (
                 <Text style={styles.emptyText}>Primero agrega una cuenta en la sección Cuentas</Text>
               ) : cuentasLiquidez.map((c: any) => (
-                <TouchableOpacity
-                  key={c.id}
-                  style={[styles.selectorItem, formTransferencia.cuenta_liquidez_id === c.id && styles.selectorItemActive]}
-                  onPress={() => setFormTransferencia(p => ({ ...p, cuenta_liquidez_id: c.id }))}
-                >
+                <TouchableOpacity key={c.id} style={[styles.selectorItem, formTransferencia.cuenta_liquidez_id === c.id && styles.selectorItemActive]} onPress={() => setFormTransferencia(p => ({ ...p, cuenta_liquidez_id: c.id }))}>
                   <Text style={styles.selectorText}>{c.nombre}</Text>
                 </TouchableOpacity>
               ))}
             </View>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Notas (opcional)</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Razón de la transferencia..."
-                placeholderTextColor="#9CA3AF"
-                value={formTransferencia.notas}
-                onChangeText={v => setFormTransferencia(p => ({ ...p, notas: v }))}
-              />
+              <TextInput style={styles.input} placeholder="Razón de la transferencia..." placeholderTextColor={theme.textSecondary} value={formTransferencia.notas} onChangeText={v => setFormTransferencia(p => ({ ...p, notas: v }))} />
             </View>
             <TouchableOpacity style={[styles.saveBtn, { backgroundColor: '#3B82F6' }]} onPress={guardarTransferencia}>
               <Text style={styles.saveBtnText}>Confirmar transferencia</Text>
@@ -470,60 +421,59 @@ export default function InversionesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F9FAFB' },
-  totalCard: { margin: 16, backgroundColor: '#4F46E5', borderRadius: 16, padding: 20, alignItems: 'center' },
-  totalLabel: { fontSize: 13, color: '#C7D2FE' },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.background },
+  totalCard: { margin: 16, backgroundColor: t.primary, borderRadius: 16, padding: 20, alignItems: 'center' },
+  totalLabel: { fontSize: 13, color: '#FFFFFF99' },
   totalValor: { fontSize: 28, fontWeight: '700', color: '#FFFFFF', marginTop: 4 },
-  totalSub: { fontSize: 12, color: '#A5B4FC', marginTop: 4 },
+  totalSub: { fontSize: 12, color: '#FFFFFFAA', marginTop: 4 },
   scroll: { padding: 16 },
   emptyState: { alignItems: 'center', padding: 40, gap: 8 },
-  emptyTitle: { fontSize: 16, fontWeight: '500', color: '#6B7280' },
-  emptyText: { fontSize: 13, color: '#9CA3AF', textAlign: 'center' },
-  card: { backgroundColor: '#FFFFFF', borderRadius: 14, padding: 16, marginBottom: 10 },
+  emptyTitle: { fontSize: 16, fontWeight: '500', color: t.textSecondary },
+  emptyText: { fontSize: 13, color: t.textSecondary, textAlign: 'center' },
+  card: { backgroundColor: t.card, borderRadius: 14, padding: 16, marginBottom: 10 },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  cardIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#EEF2FF', justifyContent: 'center', alignItems: 'center' },
+  cardIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: t.secondary + '18', justifyContent: 'center', alignItems: 'center' },
   cardInfo: { flex: 1 },
-  cardNombre: { fontSize: 15, fontWeight: '600', color: '#111827' },
-  cardInstitucion: { fontSize: 12, color: '#6B7280', marginTop: 2 },
+  cardNombre: { fontSize: 15, fontWeight: '600', color: t.text },
+  cardInstitucion: { fontSize: 12, color: t.textSecondary, marginTop: 2 },
   cardRight: { alignItems: 'flex-end' },
-  cardSaldo: { fontSize: 16, fontWeight: '700', color: '#111827' },
-  cardSaldoLabel: { fontSize: 10, color: '#9CA3AF', marginTop: 1 },
-  cardSaldoReal: { fontSize: 13, fontWeight: '600', color: '#374151', marginTop: 4 },
-  expanded: { marginTop: 14, borderTopWidth: 0.5, borderTopColor: '#F3F4F6', paddingTop: 14 },
+  cardSaldo: { fontSize: 16, fontWeight: '700', color: t.text },
+  cardSaldoLabel: { fontSize: 10, color: t.textSecondary, marginTop: 1 },
+  expanded: { marginTop: 14, borderTopWidth: 0.5, borderTopColor: t.border, paddingTop: 14 },
   expandedMetrics: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 14 },
   expandedMetric: { minWidth: '40%' },
-  expandedLabel: { fontSize: 11, color: '#9CA3AF' },
-  expandedValor: { fontSize: 14, fontWeight: '600', color: '#111827', marginTop: 2 },
+  expandedLabel: { fontSize: 11, color: t.textSecondary },
+  expandedValor: { fontSize: 14, fontWeight: '600', color: t.text, marginTop: 2 },
   expandedActions: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginBottom: 14 },
-  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#F9FAFB', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 0.5, borderColor: '#E5E7EB' },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: t.background, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 0.5, borderColor: t.border },
   actionText: { fontSize: 12, fontWeight: '500' },
-  movimientos: { borderTopWidth: 0.5, borderTopColor: '#F3F4F6', paddingTop: 12 },
-  movTitle: { fontSize: 12, fontWeight: '600', color: '#6B7280', marginBottom: 8 },
+  movimientos: { borderTopWidth: 0.5, borderTopColor: t.border, paddingTop: 12 },
+  movTitle: { fontSize: 12, fontWeight: '600', color: t.textSecondary, marginBottom: 8 },
   movRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   movLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  movTipo: { fontSize: 12, color: '#374151', textTransform: 'capitalize' },
-  movFecha: { fontSize: 11, color: '#9CA3AF' },
+  movTipo: { fontSize: 12, color: t.text, textTransform: 'capitalize' },
+  movFecha: { fontSize: 11, color: t.textSecondary },
   movMonto: { fontSize: 13, fontWeight: '600' },
-  bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, paddingBottom: 24, backgroundColor: '#FFFFFF', borderTopWidth: 0.5, borderTopColor: '#E5E7EB' },
-  bottomBtn: { backgroundColor: '#4F46E5', borderRadius: 14, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, paddingBottom: 24, backgroundColor: t.surface, borderTopWidth: 0.5, borderTopColor: t.border },
+  bottomBtn: { backgroundColor: t.primary, borderRadius: 14, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   bottomBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
-  modal: { flex: 1, backgroundColor: '#FFFFFF' },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 60, borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB' },
-  modalTitle: { fontSize: 18, fontWeight: '600', color: '#111827' },
+  modal: { flex: 1, backgroundColor: t.surface },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 60, borderBottomWidth: 0.5, borderBottomColor: t.border },
+  modalTitle: { fontSize: 18, fontWeight: '600', color: t.text },
   modalBody: { padding: 20 },
-  modalInfo: { fontSize: 13, color: '#6B7280', backgroundColor: '#FEF3C7', padding: 12, borderRadius: 8, marginBottom: 16 },
+  modalInfo: { fontSize: 13, color: t.textSecondary, backgroundColor: t.warning + '20', padding: 12, borderRadius: 8, marginBottom: 16 },
   formGroup: { marginBottom: 16 },
-  formLabel: { fontSize: 13, color: '#374151', fontWeight: '500', marginBottom: 6 },
-  input: { backgroundColor: '#F9FAFB', borderWidth: 0.5, borderColor: '#D1D5DB', borderRadius: 10, padding: 12, fontSize: 15, color: '#111827' },
+  formLabel: { fontSize: 13, color: t.text, fontWeight: '500', marginBottom: 6 },
+  input: { backgroundColor: t.background, borderWidth: 0.5, borderColor: t.border, borderRadius: 10, padding: 12, fontSize: 15, color: t.text },
   chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: '#F3F4F6', borderWidth: 0.5, borderColor: '#E5E7EB' },
-  chipActive: { backgroundColor: '#EEF2FF', borderColor: '#6366F1' },
-  chipText: { fontSize: 12, color: '#6B7280' },
-  chipTextActive: { color: '#4F46E5', fontWeight: '600' },
-  selectorItem: { padding: 12, borderRadius: 8, backgroundColor: '#F9FAFB', marginBottom: 6, borderWidth: 0.5, borderColor: '#E5E7EB' },
-  selectorItemActive: { backgroundColor: '#EEF2FF', borderColor: '#6366F1' },
-  selectorText: { fontSize: 14, color: '#374151' },
-  saveBtn: { backgroundColor: '#4F46E5', borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 8 },
+  chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: t.background, borderWidth: 0.5, borderColor: t.border },
+  chipActive: { backgroundColor: t.primary + '18', borderColor: t.primary },
+  chipText: { fontSize: 12, color: t.textSecondary },
+  chipTextActive: { color: t.primary, fontWeight: '600' },
+  selectorItem: { padding: 12, borderRadius: 8, backgroundColor: t.background, marginBottom: 6, borderWidth: 0.5, borderColor: t.border },
+  selectorItemActive: { backgroundColor: t.primary + '18', borderColor: t.primary },
+  selectorText: { fontSize: 14, color: t.text },
+  saveBtn: { backgroundColor: t.primary, borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 8 },
   saveBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
 });

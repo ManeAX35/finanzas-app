@@ -195,16 +195,17 @@ async function generarInstanciasPago(
     fecha.setMonth(fecha.getMonth() + i * salto);
     const fechaStr = fecha.toISOString().slice(0, 10);
 
+    const mesStr = fechaStr.slice(0, 7); // YYYY-MM
     const existe = await db.getFirstAsync<{ id: string }>(
       `SELECT id FROM instancia_pago
-       WHERE recurrente_version_id = ? AND fecha_esperada = ?`,
-      [versionId, fechaStr]
+       WHERE recurrente_version_id = ? AND strftime('%Y-%m', fecha_esperada) = ?`,
+      [versionId, mesStr]
     );
 
     if (existe) {
       await db.runAsync(
-        `UPDATE instancia_pago SET monto_cobrado = ? WHERE id = ? AND estado = 'esperado'`,
-        [Number(monto) || 0, existe.id]
+        `UPDATE instancia_pago SET monto_cobrado = ?, fecha_esperada = ? WHERE id = ? AND estado = 'esperado'`,
+        [Number(monto) || 0, fechaStr, existe.id]
       );
     } else {
       const piParams: (string | number | null)[] = [uid(), versionId ?? null, fechaStr ?? hoy(), Number(monto) || 0];

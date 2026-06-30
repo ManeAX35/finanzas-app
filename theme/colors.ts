@@ -1,4 +1,4 @@
-export type ThemeId = 'claro' | 'oscuro' | 'neon' | 'oceano' | 'sunset';
+export type ThemeId = 'claro' | 'oscuro' | 'neon' | 'oceano' | 'sunset' | 'sunset_dark' | 'opera_gx' | 'evangelion';
 
 export interface ThemeColors {
   background: string;
@@ -24,7 +24,7 @@ export interface TemaDefinition {
 
 export const TEMAS: Record<ThemeId, TemaDefinition> = {
   claro: {
-    nombre: 'Claro',
+    nombre: '☀️ Claro',
     preview: '#4F46E5',
     colors: {
       background: '#F9FAFB',
@@ -43,7 +43,7 @@ export const TEMAS: Record<ThemeId, TemaDefinition> = {
     },
   },
   oscuro: {
-    nombre: 'Oscuro',
+    nombre: '🌙 Oscuro',
     preview: '#818CF8',
     colors: {
       background: '#0F172A',
@@ -62,7 +62,7 @@ export const TEMAS: Record<ThemeId, TemaDefinition> = {
     },
   },
   neon: {
-    nombre: 'Neón',
+    nombre: '⚡ Neón',
     preview: '#00FF88',
     colors: {
       background: '#000000',
@@ -81,7 +81,7 @@ export const TEMAS: Record<ThemeId, TemaDefinition> = {
     },
   },
   oceano: {
-    nombre: 'Océano',
+    nombre: '🌊 Océano',
     preview: '#2196F3',
     colors: {
       background: '#0A1628',
@@ -100,7 +100,7 @@ export const TEMAS: Record<ThemeId, TemaDefinition> = {
     },
   },
   sunset: {
-    nombre: 'Sunset',
+    nombre: '🌅 Sunset',
     preview: '#F97316',
     colors: {
       background: '#FFF8F0',
@@ -116,6 +116,63 @@ export const TEMAS: Record<ThemeId, TemaDefinition> = {
       border: '#FDDCB8',
       header: '#FFFFFF',
       statusBar: 'dark',
+    },
+  },
+  sunset_dark: {
+    nombre: '🌆 Sunset Oscuro',
+    preview: '#FF6B35',
+    colors: {
+      background: '#1A0A00',
+      surface: '#2D1500',
+      card: '#3D1F00',
+      primary: '#FF6B35',
+      secondary: '#FF9500',
+      text: '#FFE4CC',
+      textSecondary: '#CC8855',
+      success: '#FF9500',
+      danger: '#FF3300',
+      warning: '#FF6B35',
+      border: '#5D3000',
+      header: '#2D1500',
+      statusBar: 'light',
+    },
+  },
+  opera_gx: {
+    nombre: '🎮 Opera GX',
+    preview: '#FF0033',
+    colors: {
+      background: '#0D0D0D',
+      surface: '#1A0A0F',
+      card: '#1F0F15',
+      primary: '#FF0033',
+      secondary: '#CC0029',
+      text: '#FFFFFF',
+      textSecondary: '#FF6680',
+      success: '#00FF88',
+      danger: '#FF0033',
+      warning: '#FF6600',
+      border: '#3D0015',
+      header: '#1A0A0F',
+      statusBar: 'light',
+    },
+  },
+  evangelion: {
+    nombre: '🤖 Evangelion',
+    preview: '#7C3AED',
+    colors: {
+      background: '#0A0A1A',
+      surface: '#0F0F2A',
+      card: '#141428',
+      primary: '#7C3AED',
+      secondary: '#10B981',
+      text: '#E0E0FF',
+      textSecondary: '#6060A0',
+      success: '#10B981',
+      danger: '#FF6B35',
+      warning: '#FBBF24',
+      border: '#1E1E4A',
+      header: '#0F0F2A',
+      statusBar: 'light',
     },
   },
 };

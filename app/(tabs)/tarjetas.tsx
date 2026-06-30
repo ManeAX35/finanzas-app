@@ -5,6 +5,7 @@ import {
   RefreshControl, Alert, Switch
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import {
   obtenerTarjetas, crearTarjeta, actualizarTarjeta,
@@ -40,6 +41,7 @@ type PagoModal = { periodoId: string; tarjetaId: string; saldo: number };
 
 export default function TarjetasScreen() {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(theme), [theme]);
 
   const [tarjetas, setTarjetas] = useState<TarjetaConVersion[]>([]);
@@ -323,7 +325,7 @@ export default function TarjetasScreen() {
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      <View style={styles.bottomBar}>
+      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 16 }]}>
         <TouchableOpacity style={styles.bottomBtn} onPress={abrirNueva}>
           <Ionicons name="add-circle-outline" size={22} color="#FFFFFF" />
           <Text style={styles.bottomBtnText}>Agregar tarjeta</Text>

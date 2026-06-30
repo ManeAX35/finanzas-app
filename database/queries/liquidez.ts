@@ -1,5 +1,13 @@
-import { getDatabase, uid, hoy } from '../index';
+import { getDatabase, uid } from '../index';
 import { CuentaLiquidez, MovimientoLiquidez } from '../../types';
+import {
+  crearMovimiento as _crearMovimiento,
+  eliminarMovimiento as _eliminarMovimiento,
+  obtenerMovimientosPorCuenta,
+  obtenerMovimientosPorMes as _obtenerMovimientosPorMes,
+  calcularSaldoCuenta,
+  obtenerTotalDisponible as _obtenerTotalDisponible,
+} from './movimientos';
 
 // ─────────────────────────────────────────
 // CUENTAS DE LIQUIDEZ
@@ -30,36 +38,19 @@ export async function obtenerCuentasLiquidez(): Promise<CuentaLiquidez[]> {
 }
 
 export async function obtenerSaldoCuenta(cuentaId: string): Promise<number> {
-  const db = await getDatabase();
-
-  const result = await db.getFirstAsync<{ saldo: number }>(
-    `SELECT COALESCE(SUM(
-       CASE
-         WHEN tipo = 'ingreso' THEN monto
-         WHEN tipo = 'gasto' THEN -monto
-         ELSE 0
-       END
-     ), 0) as saldo
-     FROM movimiento_liquidez
-     WHERE cuenta_id = ?`,
-    [cuentaId]
-  );
-
-  return result?.saldo ?? 0;
+  return calcularSaldoCuenta(cuentaId);
 }
+
 export async function obtenerSaldosTodos(): Promise<{ id: string; nombre: string; saldo: number }[]> {
-  const db = await getDatabase();
   const cuentas = await obtenerCuentasLiquidez();
 
-  const resultados = await Promise.all(
+  return await Promise.all(
     cuentas.map(async (c) => ({
       id: c.id,
       nombre: c.nombre,
-      saldo: await obtenerSaldoCuenta(c.id),
+      saldo: await calcularSaldoCuenta(c.id),
     }))
   );
-
-  return resultados;
 }
 
 export async function actualizarCuentaLiquidez(
@@ -85,101 +76,41 @@ export async function eliminarCuentaLiquidez(id: string): Promise<void> {
 }
 
 // ─────────────────────────────────────────
-// MOVIMIENTOS
+// MOVIMIENTOS — redirigen a movimientos.ts
 // ─────────────────────────────────────────
 
 export async function crearMovimiento(
   movimiento: Omit<MovimientoLiquidez, 'id' | 'created_at'>
 ): Promise<string> {
-  const db = await getDatabase();
-
-  if (movimiento.tipo === 'transferencia' && movimiento.cuenta_destino_id) {
-    const idOrigen = uid();
-    const idDestino = uid();
-
-    const sql = `INSERT INTO movimiento_liquidez (id, cuenta_id, tipo, monto, fecha, descripcion, categoria, cuenta_destino_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
-
-    const paramsOrigen: (string | number | null)[] = [
-      idOrigen,
-      movimiento.cuenta_id ?? null,
-      'gasto',
-      movimiento.monto ?? null,
-      movimiento.fecha ?? null,
-      movimiento.descripcion ?? null,
-      movimiento.categoria ?? null,
-      movimiento.cuenta_destino_id ?? null,
-    ];
-
-    const paramsDestino: (string | number | null)[] = [
-      idDestino,
-      movimiento.cuenta_destino_id ?? null,
-      'ingreso',
-      movimiento.monto ?? null,
-      movimiento.fecha ?? null,
-      movimiento.descripcion ?? null,
-      movimiento.categoria ?? null,
-      movimiento.cuenta_id ?? null,
-    ];
-
-    await db.runAsync(sql, paramsOrigen);
-    await db.runAsync(sql, paramsDestino);
-
-    return idOrigen;
-  }
-
-  const id = uid();
-  await db.runAsync(
-    `INSERT INTO movimiento_liquidez
-      (id, cuenta_id, tipo, monto, fecha, descripcion, categoria, cuenta_destino_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, movimiento.cuenta_id ?? null, movimiento.tipo ?? null, movimiento.monto ?? null,
-     movimiento.fecha ?? null, movimiento.descripcion ?? null,
-     movimiento.categoria ?? null, movimiento.cuenta_destino_id ?? null]
-  );
-
-  return id;
+  return _crearMovimiento({
+    tipo: movimiento.tipo,
+    monto: movimiento.monto,
+    fecha: movimiento.fecha,
+    descripcion: movimiento.descripcion,
+    categoria: movimiento.categoria,
+    cuenta_id: movimiento.cuenta_id,
+    cuenta_destino_id: movimiento.cuenta_destino_id,
+  });
 }
 
 export async function obtenerMovimientos(
   cuentaId: string,
   limite: number = 50
 ): Promise<MovimientoLiquidez[]> {
-  const db = await getDatabase();
-  return await db.getAllAsync<MovimientoLiquidez>(
-    `SELECT * FROM movimiento_liquidez
-     WHERE cuenta_id = ?
-     ORDER BY fecha DESC, created_at DESC
-     LIMIT ?`,
-    [cuentaId, limite]
-  );
+  return obtenerMovimientosPorCuenta(cuentaId, limite);
 }
 
 export async function obtenerMovimientosPorMes(
   anio: number,
   mes: number
 ): Promise<MovimientoLiquidez[]> {
-  const db = await getDatabase();
-  const fechaInicio = `${anio}-${String(mes).padStart(2, '0')}-01`;
-  const fechaFin = `${anio}-${String(mes).padStart(2, '0')}-31`;
-
-  return await db.getAllAsync<MovimientoLiquidez>(
-    `SELECT * FROM movimiento_liquidez
-     WHERE fecha BETWEEN ? AND ?
-     ORDER BY fecha DESC`,
-    [fechaInicio, fechaFin]
-  );
+  return _obtenerMovimientosPorMes(anio, mes);
 }
 
 export async function eliminarMovimiento(id: string): Promise<void> {
-  const db = await getDatabase();
-  await db.runAsync('DELETE FROM movimiento_liquidez WHERE id = ?', [id]);
+  return _eliminarMovimiento(id);
 }
 
-// ─────────────────────────────────────────
-// TOTAL DISPONIBLE
-// ─────────────────────────────────────────
-
 export async function obtenerTotalDisponible(): Promise<number> {
-  const saldos = await obtenerSaldosTodos();
-  return saldos.reduce((sum, c) => sum + c.saldo, 0);
+  return _obtenerTotalDisponible();
 }

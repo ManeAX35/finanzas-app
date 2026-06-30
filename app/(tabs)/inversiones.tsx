@@ -5,6 +5,7 @@ import {
   RefreshControl, Alert
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import {
   obtenerCuentasInversion, crearCuentaInversion,
@@ -29,6 +30,7 @@ const FORM_INICIAL = {
 
 export default function InversionesScreen() {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(theme), [theme]);
 
   const [cuentas, setCuentas] = useState<any[]>([]);
@@ -278,7 +280,7 @@ export default function InversionesScreen() {
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      <View style={styles.bottomBar}>
+      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 16 }]}>
         <TouchableOpacity style={styles.bottomBtn} onPress={() => setModalNueva(true)}>
           <Ionicons name="add-circle-outline" size={22} color="#FFFFFF" />
           <Text style={styles.bottomBtnText}>Agregar inversión</Text>

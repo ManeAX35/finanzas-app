@@ -1,4 +1,4 @@
-export const DATABASE_VERSION = 2;
+export const DATABASE_VERSION = 3;
 
 export const CREATE_TABLES = `
 
@@ -68,7 +68,7 @@ export const CREATE_TABLES = `
   );
 
   -- ─────────────────────────────────────────
-  -- GASTOS DEL DÍA A DÍA
+  -- GASTOS DEL DÍA A DÍA (respaldo)
   -- ─────────────────────────────────────────
 
   CREATE TABLE IF NOT EXISTS gasto (
@@ -79,6 +79,28 @@ export const CREATE_TABLES = `
     monto REAL NOT NULL,
     fecha TEXT NOT NULL,
     categoria TEXT,
+    notas TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+
+  -- ─────────────────────────────────────────
+  -- TABLA CENTRAL DE MOVIMIENTOS
+  -- ─────────────────────────────────────────
+
+  CREATE TABLE IF NOT EXISTS movimiento (
+    id TEXT PRIMARY KEY,
+    tipo TEXT NOT NULL CHECK(tipo IN ('ingreso','gasto','transferencia')),
+    monto REAL NOT NULL,
+    fecha TEXT NOT NULL,
+    descripcion TEXT,
+    categoria TEXT,
+    cuenta_id TEXT REFERENCES cuenta_liquidez(id),
+    tarjeta_version_id TEXT REFERENCES tarjeta_version(id),
+    cuenta_destino_id TEXT REFERENCES cuenta_liquidez(id),
+    inversion_id TEXT REFERENCES cuenta_inversion(id),
+    compra_id TEXT REFERENCES compra(id),
+    recurrente_id TEXT REFERENCES gasto_recurrente(id),
+    es_msi INTEGER DEFAULT 0,
     notas TEXT,
     created_at TEXT DEFAULT (datetime('now'))
   );

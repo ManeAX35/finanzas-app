@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   View, Text, ScrollView, StyleSheet,
   RefreshControl, TouchableOpacity, Modal, TextInput, Alert
@@ -36,6 +37,7 @@ const CATEGORIAS_INGRESO = ['Sueldo', 'Freelance', 'Venta', 'Reembolso', 'Transf
 
 export default function ResumenScreen() {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(theme), [theme]);
 
   const [loading, setLoading] = useState(true);
@@ -445,7 +447,7 @@ export default function ResumenScreen() {
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      <View style={styles.bottomBar}>
+      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 16 }]}>
         <TouchableOpacity style={styles.bottomBtnIngreso} onPress={() => setModalIngreso(true)}>
           <Ionicons name="arrow-down-circle-outline" size={20} color="#FFFFFF" />
           <Text style={styles.bottomBtnText}>Ingreso</Text>

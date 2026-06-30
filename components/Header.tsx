@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal, SafeAreaView } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { openGlobalMenu } from '../app/(tabs)/_layout';
 import { useTheme } from '../theme/ThemeContext';
@@ -14,10 +15,11 @@ const TEMA_IDS = Object.keys(TEMAS) as ThemeId[];
 
 export default function Header({ title, subtitle }: HeaderProps) {
   const { theme, themeId, cambiarTema } = useTheme();
+  const insets = useSafeAreaInsets();
   const [modalTema, setModalTema] = useState(false);
 
   return (
-    <View style={[styles.header, { backgroundColor: theme.header, borderBottomColor: theme.border }]}>
+    <View style={[styles.header, { backgroundColor: theme.header, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
       <View style={styles.left}>
         <Text style={[styles.title, { color: theme.text }]}>{title}</Text>
         {subtitle && <Text style={[styles.subtitle, { color: theme.textSecondary }]}>{subtitle}</Text>}
@@ -58,7 +60,7 @@ export default function Header({ title, subtitle }: HeaderProps) {
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 60, borderBottomWidth: 0.5 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 0.5 },
   left: { flex: 1 },
   title: { fontSize: 24, fontWeight: '600' },
   subtitle: { fontSize: 13, marginTop: 2 },

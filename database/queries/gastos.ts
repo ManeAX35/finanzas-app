@@ -1,5 +1,6 @@
 import { getDatabase, uid, hoy } from '../index';
 import { Gasto, Compra, CuotaMensual } from '../../types';
+import { crearMovimiento } from './movimientos';
 
 // ─────────────────────────────────────────
 // GASTOS DEL DÍA A DÍA
@@ -8,19 +9,17 @@ import { Gasto, Compra, CuotaMensual } from '../../types';
 export async function crearGasto(
   gasto: Omit<Gasto, 'id' | 'created_at'>
 ): Promise<string> {
-  const db = await getDatabase();
-  const id = uid();
+  const id = await crearMovimiento({
+    tipo: 'gasto',
+    monto: gasto.monto,
+    fecha: gasto.fecha,
+    descripcion: gasto.descripcion,
+    categoria: gasto.categoria,
+    cuenta_id: gasto.cuenta_liquidez_id,
+    tarjeta_version_id: gasto.tarjeta_version_id,
+    notas: gasto.notas,
+  });
 
-  await db.runAsync(
-    `INSERT INTO gasto 
-      (id, tarjeta_version_id, cuenta_liquidez_id, descripcion, monto, fecha, categoria, notas)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, gasto.tarjeta_version_id ?? null, gasto.cuenta_liquidez_id ?? null,
-     gasto.descripcion, gasto.monto, gasto.fecha,
-     gasto.categoria ?? null, gasto.notas ?? null]
-  );
-
-  // Actualizar saldo del periodo si va a tarjeta
   if (gasto.tarjeta_version_id) {
     await actualizarSaldoPeriodo(gasto.tarjeta_version_id, gasto.monto, gasto.fecha);
   }
@@ -34,7 +33,8 @@ export async function obtenerGastos(
 ): Promise<Gasto[]> {
   const db = await getDatabase();
   return await db.getAllAsync<Gasto>(
-    `SELECT * FROM gasto
+    `SELECT *, cuenta_id as cuenta_liquidez_id FROM movimiento
+     WHERE tipo = 'gasto' AND compra_id IS NULL AND recurrente_id IS NULL
      ORDER BY fecha DESC, created_at DESC
      LIMIT ? OFFSET ?`,
     [limite, offset]
@@ -50,7 +50,7 @@ export async function obtenerGastosPorTarjeta(
 
   if (fechaDesde && fechaHasta) {
     return await db.getAllAsync<Gasto>(
-      `SELECT * FROM gasto
+      `SELECT *, cuenta_id as cuenta_liquidez_id FROM movimiento
        WHERE tarjeta_version_id = ? AND fecha BETWEEN ? AND ?
        ORDER BY fecha DESC`,
       [tarjetaVersionId, fechaDesde, fechaHasta]
@@ -58,7 +58,7 @@ export async function obtenerGastosPorTarjeta(
   }
 
   return await db.getAllAsync<Gasto>(
-    `SELECT * FROM gasto
+    `SELECT *, cuenta_id as cuenta_liquidez_id FROM movimiento
      WHERE tarjeta_version_id = ?
      ORDER BY fecha DESC`,
     [tarjetaVersionId]
@@ -74,8 +74,9 @@ export async function obtenerGastosPorMes(
   const fechaFin = `${anio}-${String(mes).padStart(2, '0')}-31`;
 
   return await db.getAllAsync<Gasto>(
-    `SELECT * FROM gasto
-     WHERE fecha BETWEEN ? AND ?
+    `SELECT *, cuenta_id as cuenta_liquidez_id FROM movimiento
+     WHERE tipo = 'gasto' AND fecha BETWEEN ? AND ?
+     AND compra_id IS NULL AND recurrente_id IS NULL
      ORDER BY fecha DESC`,
     [fechaInicio, fechaFin]
   );
@@ -83,7 +84,7 @@ export async function obtenerGastosPorMes(
 
 export async function eliminarGasto(id: string): Promise<void> {
   const db = await getDatabase();
-  await db.runAsync('DELETE FROM gasto WHERE id = ?', [id]);
+  await db.runAsync('DELETE FROM movimiento WHERE id = ?', [id]);
 }
 
 export async function actualizarGasto(
@@ -92,7 +93,7 @@ export async function actualizarGasto(
 ): Promise<void> {
   const db = await getDatabase();
   await db.runAsync(
-    `UPDATE gasto SET descripcion = ?, monto = ?, fecha = ?, categoria = ?, notas = ? WHERE id = ?`,
+    `UPDATE movimiento SET descripcion = ?, monto = ?, fecha = ?, categoria = ?, notas = ? WHERE id = ?`,
     [cambios.descripcion ?? null, cambios.monto ?? null, cambios.fecha ?? null, cambios.categoria ?? null, cambios.notas ?? null, id]
   );
 }
@@ -212,7 +213,6 @@ export async function marcarCuotaPagada(cuotaId: string): Promise<void> {
     [hoy(), cuotaId]
   );
 
-  // Verificar si todas las cuotas están pagadas
   const cuota = await db.getFirstAsync<CuotaMensual>(
     'SELECT * FROM cuota_mensual WHERE id = ?',
     [cuotaId]
@@ -251,7 +251,6 @@ async function actualizarSaldoPeriodo(
 ): Promise<void> {
   const db = await getDatabase();
 
-  // Buscar el periodo al que corresponde este gasto
   const periodo = await db.getFirstAsync<{ id: string }>(
     `SELECT pc.id FROM periodo_corte pc
      JOIN tarjeta_version tv ON tv.tarjeta_id = pc.tarjeta_id

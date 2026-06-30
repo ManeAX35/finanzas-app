@@ -5,6 +5,7 @@ import {
   RefreshControl, Alert
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import {
   obtenerCuentasLiquidez, crearCuentaLiquidez,
@@ -44,6 +45,7 @@ const FORM_MOV_INICIAL = { tipo: 'ingreso', monto: '', descripcion: '', categori
 
 export default function CuentasScreen() {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(theme), [theme]);
 
   const [cuentas, setCuentas] = useState<CuentaLiquidez[]>([]);
@@ -311,7 +313,7 @@ export default function CuentasScreen() {
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      <View style={styles.bottomBar}>
+      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 16 }]}>
         <TouchableOpacity style={styles.bottomBtn} onPress={abrirNueva}>
           <Ionicons name="add-circle-outline" size={22} color="#FFFFFF" />
           <Text style={styles.bottomBtnText}>Agregar cuenta</Text>

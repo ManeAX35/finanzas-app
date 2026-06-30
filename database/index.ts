@@ -104,11 +104,44 @@ async function checkMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
     }
   }
 
-  if (currentVersion < DATABASE_VERSION && DATABASE_VERSION > 2) {
+  if (currentVersion < 3) {
     try {
-      await db.execAsync(`INSERT OR IGNORE INTO db_version (version) VALUES (${DATABASE_VERSION})`);
+      await db.execAsync(`
+        CREATE TABLE IF NOT EXISTS movimiento (
+          id TEXT PRIMARY KEY,
+          tipo TEXT NOT NULL CHECK(tipo IN ('ingreso','gasto','transferencia')),
+          monto REAL NOT NULL,
+          fecha TEXT NOT NULL,
+          descripcion TEXT,
+          categoria TEXT,
+          cuenta_id TEXT REFERENCES cuenta_liquidez(id),
+          tarjeta_version_id TEXT REFERENCES tarjeta_version(id),
+          cuenta_destino_id TEXT REFERENCES cuenta_liquidez(id),
+          inversion_id TEXT REFERENCES cuenta_inversion(id),
+          compra_id TEXT REFERENCES compra(id),
+          recurrente_id TEXT REFERENCES gasto_recurrente(id),
+          es_msi INTEGER DEFAULT 0,
+          notas TEXT,
+          created_at TEXT DEFAULT (datetime('now'))
+        )
+      `);
+      await db.execAsync(`
+        INSERT OR IGNORE INTO movimiento
+          (id, tipo, monto, fecha, descripcion, categoria, cuenta_id, cuenta_destino_id, created_at)
+        SELECT id, tipo, monto, fecha, descripcion, categoria, cuenta_id, cuenta_destino_id, created_at
+        FROM movimiento_liquidez
+      `);
+      await db.execAsync(`
+        INSERT OR IGNORE INTO movimiento
+          (id, tipo, monto, fecha, descripcion, categoria, cuenta_id, tarjeta_version_id, notas, created_at)
+        SELECT id, 'gasto', monto, fecha, descripcion, categoria, cuenta_liquidez_id, tarjeta_version_id, notas, created_at
+        FROM gasto
+        WHERE id NOT IN (SELECT id FROM movimiento)
+      `);
+      await db.execAsync('INSERT OR IGNORE INTO db_version (version) VALUES (3)');
+      console.log('[migration v3] tabla movimiento creada y datos migrados');
     } catch (e) {
-      console.error('[migration] Error registrando versión final:', e);
+      console.error('[migration v3]', e);
     }
   }
 }
@@ -121,6 +154,7 @@ export async function resetDatabase(): Promise<void> {
     'movimiento_inversion', 'cuenta_inversion_version', 'cuenta_inversion',
     'instancia_pago', 'gasto_recurrente_version', 'gasto_recurrente',
     'cuota_mensual', 'compra',
+    'movimiento',
     'gasto',
     'periodo_corte', 'tarjeta_version', 'tarjeta',
     'movimiento_liquidez', 'cuenta_liquidez',

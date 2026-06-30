@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity,
   Modal, SafeAreaView, ScrollView
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Tabs, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../theme/ThemeContext';
@@ -34,7 +35,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   overlay: { flex: 1, flexDirection: 'row' },
   overlayBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
   drawer: { width: 280, backgroundColor: t.surface, shadowColor: '#000', shadowOffset: { width: -2, height: 0 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 10 },
-  drawerHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 20, paddingTop: 24, borderBottomWidth: 0.5, borderBottomColor: t.border },
+  drawerHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 20, borderBottomWidth: 0.5, borderBottomColor: t.border },
   drawerLogo: { width: 44, height: 44, borderRadius: 12, backgroundColor: t.primary + '18', justifyContent: 'center', alignItems: 'center' },
   drawerTitle: { fontSize: 16, fontWeight: '700', color: t.text },
   drawerSub: { fontSize: 12, color: t.textSecondary, marginTop: 1 },
@@ -52,6 +53,7 @@ export default function TabLayout() {
   const [menuVisible, setMenuVisible] = useState(false);
   const [activeTab, setActiveTab] = useState('resumen');
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
 
   const styles = useMemo(() => makeStyles(theme), [theme]);
 
@@ -85,7 +87,7 @@ export default function TabLayout() {
         <View style={styles.overlay}>
           <TouchableOpacity style={styles.overlayBg} onPress={() => setMenuVisible(false)} />
           <SafeAreaView style={styles.drawer}>
-            <View style={styles.drawerHeader}>
+            <View style={[styles.drawerHeader, { paddingTop: insets.top + 16 }]}>
               <View style={styles.drawerLogo}>
                 <Ionicons name="wallet-outline" size={28} color={theme.primary} />
               </View>

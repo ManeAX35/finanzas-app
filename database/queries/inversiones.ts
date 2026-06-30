@@ -279,7 +279,7 @@ export async function transferirCuentaAInversion(
   monto: number,
   notas?: string
 ): Promise<void> {
-  const { crearMovimiento } = await import('./liquidez');
+  const { crearMovimiento } = await import('./movimientos');
 
   await crearMovimiento({
     cuenta_id: cuentaId,
@@ -299,7 +299,7 @@ export async function transferirInversionACuenta(
   monto: number,
   notas?: string
 ): Promise<void> {
-  const { crearMovimiento } = await import('./liquidez');
+  const { crearMovimiento } = await import('./movimientos');
 
   await registrarMovimientoInversion(cuentaInversionId, 'retiro', monto, notas ?? 'Retiro a cuenta');
 

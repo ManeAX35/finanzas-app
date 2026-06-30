@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import * as FileSystem from 'expo-file-system';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TEMAS, ThemeColors, ThemeId } from './colors';
 
 interface ThemeContextType {
@@ -14,13 +14,13 @@ const ThemeContext = createContext<ThemeContextType>({
   cambiarTema: () => {},
 });
 
-const TEMA_PATH = FileSystem.documentDirectory + 'tema.txt';
+const THEME_KEY = 'app-theme';
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [themeId, setThemeId] = useState<ThemeId>('claro');
 
   useEffect(() => {
-    FileSystem.readAsStringAsync(TEMA_PATH)
+    AsyncStorage.getItem(THEME_KEY)
       .then(saved => {
         if (saved && TEMAS[saved as ThemeId]) setThemeId(saved as ThemeId);
       })
@@ -29,7 +29,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   const cambiarTema = (id: ThemeId) => {
     setThemeId(id);
-    FileSystem.writeAsStringAsync(TEMA_PATH, id).catch(() => {});
+    AsyncStorage.setItem(THEME_KEY, id).catch(() => {});
   };
 
   return (

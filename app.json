@@ -2,7 +2,7 @@
   "expo": {
     "name": "finanzas-app",
     "slug": "finanzas-app",
-    "version": "1.0.0",
+    "version": "0.4.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "finanzasapp",
@@ -18,7 +18,8 @@
       "adaptiveIcon": {
         "backgroundColor": "#ffffff"
       },
-      "package": "com.maneax.finanzasapp"
+      "package": "com.maneax.finanzasapp",
+      "versionCode": 4
     },
     "web": {
       "bundler": "metro"

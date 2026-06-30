@@ -5,6 +5,7 @@ import {
   RefreshControl, Alert
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { crearGasto, obtenerGastos, eliminarGasto, actualizarGasto, crearCompra, obtenerCompras, eliminarCompra, obtenerCuotasPendientesMes, marcarCuotaPagada } from '../../database/queries/gastos';
 import { obtenerTarjetas, abonarSaldoTarjeta } from '../../database/queries/tarjetas';
@@ -21,6 +22,7 @@ const MSI_OPTS = [1, 3, 6, 9, 12, 18, 24];
 
 export default function GastosScreen() {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(theme), [theme]);
 
   const [tab, setTab] = useState<'gastos' | 'msi' | 'cuotas'>('gastos');
@@ -303,7 +305,7 @@ export default function GastosScreen() {
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      <View style={styles.bottomBar}>
+      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 16 }]}>
         {tab === 'gastos' && (
           <TouchableOpacity style={styles.bottomBtn} onPress={() => setModalGasto(true)}>
             <Ionicons name="add-circle-outline" size={22} color="#FFFFFF" />

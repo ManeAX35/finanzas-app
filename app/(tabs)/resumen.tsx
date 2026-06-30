@@ -186,7 +186,7 @@ export default function ResumenScreen() {
           cuenta_id: formGasto.pago_cuenta_id, tipo: 'gasto', monto,
           fecha: formGasto.fecha,
           descripcion: formGasto.descripcion || 'Pago a tarjeta',
-          categoria: 'Tarjeta',
+          categoria: 'Pago tarjeta',
         });
         await abonarSaldoTarjeta(formGasto.pago_tarjeta_id, monto);
       } else if (tipoGasto === 'a_inversion') {
@@ -259,7 +259,7 @@ export default function ResumenScreen() {
         monto,
         fecha: hoy(),
         descripcion: `Pago tarjeta ${pagoRModal.nombre}`,
-        categoria: 'tarjeta',
+        categoria: 'Pago tarjeta',
       });
       setPagoRModal(null);
       setPagoRMonto('');
@@ -270,7 +270,7 @@ export default function ResumenScreen() {
     }
   };
 
-  const neto = totalDisponible - totalGastosMes - totalMSI - totalRecurrentes;
+  const efectivoDisponible = totalDisponible - totalMSI - totalRecurrentes;
   const patrimonioNeto = totalDisponible + totalInversiones - totalDeuda;
 
   if (loading) {
@@ -331,25 +331,25 @@ export default function ResumenScreen() {
               <Text style={[styles.balanceValor, { color: theme.success }]}>{formatMXN(totalDisponible)}</Text>
             </View>
             <View style={styles.balanceRow}>
-              <Text style={styles.balanceLabel}>Gastos en tarjeta este mes</Text>
-              <Text style={[styles.balanceValor, { color: theme.danger }]}>− {formatMXN(totalGastosTarjetaMes)}</Text>
+              <Text style={[styles.balanceLabel, { fontSize: 12, fontStyle: 'italic' }]}>Gastado en tarjeta (ya en deuda)</Text>
+              <Text style={[styles.balanceValor, { color: theme.textSecondary, fontSize: 12 }]}>{formatMXN(totalGastosTarjetaMes)}</Text>
             </View>
             <View style={styles.balanceRow}>
-              <Text style={styles.balanceLabel}>Gastos en cuenta este mes</Text>
-              <Text style={[styles.balanceValor, { color: theme.danger }]}>− {formatMXN(totalGastosMes)}</Text>
+              <Text style={[styles.balanceLabel, { fontSize: 12, fontStyle: 'italic' }]}>Gastado en cuenta (ya descontado)</Text>
+              <Text style={[styles.balanceValor, { color: theme.textSecondary, fontSize: 12 }]}>{formatMXN(totalGastosMes)}</Text>
             </View>
             <View style={styles.balanceRow}>
-              <Text style={styles.balanceLabel}>Cuotas MSI este mes</Text>
-              <Text style={[styles.balanceValor, { color: theme.danger }]}>− {formatMXN(totalMSI)}</Text>
+              <Text style={styles.balanceLabel}>Cuotas MSI pendientes</Text>
+              <Text style={[styles.balanceValor, { color: totalMSI > 0 ? theme.danger : theme.textSecondary }]}>− {formatMXN(totalMSI)}</Text>
             </View>
             <View style={styles.balanceRow}>
-              <Text style={styles.balanceLabel}>Recurrentes este mes</Text>
-              <Text style={[styles.balanceValor, { color: theme.danger }]}>− {formatMXN(totalRecurrentes)}</Text>
+              <Text style={styles.balanceLabel}>Recurrentes pendientes</Text>
+              <Text style={[styles.balanceValor, { color: totalRecurrentes > 0 ? theme.danger : theme.textSecondary }]}>− {formatMXN(totalRecurrentes)}</Text>
             </View>
             <View style={[styles.balanceRow, styles.balanceTotalRow]}>
               <Text style={styles.balanceTotalLabel}>Efectivo disponible</Text>
-              <Text style={[styles.balanceTotalValor, { color: neto >= 0 ? theme.success : theme.danger }]}>
-                {formatMXN(neto)}
+              <Text style={[styles.balanceTotalValor, { color: efectivoDisponible >= 0 ? theme.success : theme.danger }]}>
+                {formatMXN(efectivoDisponible)}
               </Text>
             </View>
           </View>
@@ -495,7 +495,7 @@ export default function ResumenScreen() {
             </View>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Monto ($)</Text>
-              <TextInput style={styles.input} placeholder="0.00" placeholderTextColor="#9CA3AF" keyboardType="decimal-pad" value={formGasto.monto} onChangeText={v => setFormGasto(p => ({ ...p, monto: v }))} />
+              <TextInput style={styles.input} placeholder="0.00" placeholderTextColor="#9CA3AF" keyboardType="decimal-pad" value={formGasto.monto} onChangeText={v => setFormGasto(p => ({ ...p, monto: v.replace(/[^0-9.]/g, '') }))} />
             </View>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Fecha</Text>
@@ -602,7 +602,7 @@ export default function ResumenScreen() {
                 placeholderTextColor="#9CA3AF"
                 keyboardType="decimal-pad"
                 value={pagoRMonto}
-                onChangeText={setPagoRMonto}
+                onChangeText={v => setPagoRMonto(v.replace(/[^0-9.]/g, ''))}
               />
             </View>
             <View style={styles.formGroup}>
@@ -653,7 +653,7 @@ export default function ResumenScreen() {
             </View>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Monto ($)</Text>
-              <TextInput style={styles.input} placeholder="0.00" placeholderTextColor="#9CA3AF" keyboardType="decimal-pad" value={formIngreso.monto} onChangeText={v => setFormIngreso(p => ({ ...p, monto: v }))} />
+              <TextInput style={styles.input} placeholder="0.00" placeholderTextColor="#9CA3AF" keyboardType="decimal-pad" value={formIngreso.monto} onChangeText={v => setFormIngreso(p => ({ ...p, monto: v.replace(/[^0-9.]/g, '') }))} />
             </View>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Descripción (opcional)</Text>

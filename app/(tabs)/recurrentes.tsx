@@ -92,6 +92,11 @@ export default function RecurrentesScreen() {
       Alert.alert('Campos requeridos', 'Nombre y día de cobro son obligatorios.');
       return;
     }
+    const monto = parseFloat(form.monto);
+    if (!form.monto_variable && (!form.monto || isNaN(monto) || monto <= 0)) {
+      Alert.alert('Monto inválido', 'El monto debe ser mayor a 0.');
+      return;
+    }
     try {
       const datos = {
         nombre: form.nombre, monto: parseFloat(form.monto) || 0,
@@ -252,7 +257,10 @@ export default function RecurrentesScreen() {
                   placeholderTextColor={theme.textSecondary}
                   keyboardType={f.keyboardType}
                   value={form[f.key as keyof typeof form] as string}
-                  onChangeText={v => setForm(p => ({ ...p, [f.key]: v }))}
+                  onChangeText={v => {
+                    const filtered = f.keyboardType === 'decimal-pad' ? v.replace(/[^0-9.]/g, '') : f.keyboardType === 'number-pad' ? v.replace(/[^0-9]/g, '') : v;
+                    setForm(p => ({ ...p, [f.key]: filtered }));
+                  }}
                 />
               </View>
             ))}

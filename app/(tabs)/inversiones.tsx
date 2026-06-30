@@ -81,6 +81,11 @@ export default function InversionesScreen() {
       Alert.alert('Campos requeridos', 'Institución, nombre y tasa son obligatorios.');
       return;
     }
+    const tasa = parseFloat(form.tasa_anual);
+    if (isNaN(tasa) || tasa <= 0) {
+      Alert.alert('Monto inválido', 'La tasa anual debe ser mayor a 0.');
+      return;
+    }
     try {
       await crearCuentaInversion(
         { institucion: form.institucion, nombre: form.nombre },
@@ -98,7 +103,11 @@ export default function InversionesScreen() {
   };
 
   const guardarMovimiento = async () => {
-    if (!formMov.monto || !cuentaSeleccionada) return;
+    const monto = parseFloat(formMov.monto);
+    if (!cuentaSeleccionada || !formMov.monto || isNaN(monto) || monto <= 0) {
+      Alert.alert('Monto inválido', 'El monto debe ser mayor a 0.');
+      return;
+    }
     try {
       await registrarMovimientoInversion(cuentaSeleccionada, formMov.tipo as any, parseFloat(formMov.monto), formMov.notas || undefined);
       setModalMovimiento(false);
@@ -108,7 +117,11 @@ export default function InversionesScreen() {
   };
 
   const guardarNuevaTasa = async () => {
-    if (!nuevaTasa || !cuentaSeleccionada) return;
+    const tasa = parseFloat(nuevaTasa);
+    if (!cuentaSeleccionada || !nuevaTasa || isNaN(tasa) || tasa <= 0) {
+      Alert.alert('Monto inválido', 'La tasa debe ser mayor a 0.');
+      return;
+    }
     try {
       await actualizarTasaInversion(cuentaSeleccionada, parseFloat(nuevaTasa));
       setModalTasa(false);
@@ -118,8 +131,9 @@ export default function InversionesScreen() {
   };
 
   const guardarTransferencia = async () => {
-    if (!formTransferencia.monto || !formTransferencia.cuenta_liquidez_id || !cuentaSeleccionada) {
-      Alert.alert('Campos requeridos', 'Monto y cuenta son obligatorios.');
+    const monto = parseFloat(formTransferencia.monto);
+    if (!formTransferencia.cuenta_liquidez_id || !cuentaSeleccionada || !formTransferencia.monto || isNaN(monto) || monto <= 0) {
+      Alert.alert('Campos requeridos', 'Monto válido y cuenta son obligatorios.');
       return;
     }
     try {
@@ -311,7 +325,10 @@ export default function InversionesScreen() {
                   placeholderTextColor={theme.textSecondary}
                   keyboardType={f.keyboardType}
                   value={form[f.key as keyof typeof form]}
-                  onChangeText={v => setForm(p => ({ ...p, [f.key]: v }))}
+                  onChangeText={v => {
+                    const filtered = f.keyboardType === 'decimal-pad' ? v.replace(/[^0-9.]/g, '') : v;
+                    setForm(p => ({ ...p, [f.key]: filtered }));
+                  }}
                 />
               </View>
             ))}
@@ -344,7 +361,7 @@ export default function InversionesScreen() {
           <View style={styles.modalBody}>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Monto ($)</Text>
-              <TextInput style={styles.input} placeholder="0.00" placeholderTextColor={theme.textSecondary} keyboardType="decimal-pad" value={formMov.monto} onChangeText={v => setFormMov(p => ({ ...p, monto: v }))} />
+              <TextInput style={styles.input} placeholder="0.00" placeholderTextColor={theme.textSecondary} keyboardType="decimal-pad" value={formMov.monto} onChangeText={v => setFormMov(p => ({ ...p, monto: v.replace(/[^0-9.]/g, '') }))} />
             </View>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Notas (opcional)</Text>
@@ -369,7 +386,7 @@ export default function InversionesScreen() {
             <Text style={styles.modalInfo}>Al cambiar la tasa se cerrará la versión actual y se abrirá una nueva. El historial queda guardado.</Text>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Nueva tasa anual (%)</Text>
-              <TextInput style={styles.input} placeholder="11.5" placeholderTextColor={theme.textSecondary} keyboardType="decimal-pad" value={nuevaTasa} onChangeText={setNuevaTasa} />
+              <TextInput style={styles.input} placeholder="11.5" placeholderTextColor={theme.textSecondary} keyboardType="decimal-pad" value={nuevaTasa} onChangeText={v => setNuevaTasa(v.replace(/[^0-9.]/g, ''))} />
             </View>
             <TouchableOpacity style={styles.saveBtn} onPress={guardarNuevaTasa}>
               <Text style={styles.saveBtnText}>Actualizar tasa (SCD 2)</Text>
@@ -396,7 +413,7 @@ export default function InversionesScreen() {
             </Text>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Monto ($)</Text>
-              <TextInput style={styles.input} placeholder="0.00" placeholderTextColor={theme.textSecondary} keyboardType="decimal-pad" value={formTransferencia.monto} onChangeText={v => setFormTransferencia(p => ({ ...p, monto: v }))} />
+              <TextInput style={styles.input} placeholder="0.00" placeholderTextColor={theme.textSecondary} keyboardType="decimal-pad" value={formTransferencia.monto} onChangeText={v => setFormTransferencia(p => ({ ...p, monto: v.replace(/[^0-9.]/g, '') }))} />
             </View>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>{tipoTransferencia === 'cuentaAInversion' ? 'Cuenta origen' : 'Cuenta destino'}</Text>

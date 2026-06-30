@@ -84,6 +84,13 @@ export async function obtenerGastosPorMes(
 
 export async function eliminarGasto(id: string): Promise<void> {
   const db = await getDatabase();
+  const mov = await db.getFirstAsync<{ tarjeta_version_id: string | null; monto: number; fecha: string }>(
+    'SELECT tarjeta_version_id, monto, fecha FROM movimiento WHERE id = ?',
+    [id]
+  );
+  if (mov?.tarjeta_version_id) {
+    await revertirSaldoPeriodo(mov.tarjeta_version_id, mov.monto, mov.fecha);
+  }
   await db.runAsync('DELETE FROM movimiento WHERE id = ?', [id]);
 }
 
@@ -182,19 +189,13 @@ export async function obtenerCompraConCuotas(
 export async function obtenerCuotasPendientesMes(
   anio: number,
   mes: number
-): Promise<(CuotaMensual & { descripcion_compra: string })[]> {
+): Promise<(CuotaMensual & { descripcion_compra: string; compra_tarjeta_version_id: string | null })[]> {
   const db = await getDatabase();
   const fechaInicio = `${anio}-${String(mes).padStart(2, '0')}-01`;
   const fechaFin = `${anio}-${String(mes).padStart(2, '0')}-31`;
-  console.log('[obtenerCuotasPendientesMes] buscando entre', fechaInicio, 'y', fechaFin);
-
-  const todas = await db.getAllAsync<{ fecha_esperada: string; estado: string }>(
-    'SELECT fecha_esperada, estado FROM cuota_mensual ORDER BY fecha_esperada ASC'
-  );
-  console.log('[obtenerCuotasPendientesMes] todas las cuotas en DB:', JSON.stringify(todas));
 
   return await db.getAllAsync(
-    `SELECT cm.*, c.descripcion as descripcion_compra
+    `SELECT cm.*, c.descripcion as descripcion_compra, c.tarjeta_version_id as compra_tarjeta_version_id
      FROM cuota_mensual cm
      JOIN compra c ON c.id = cm.compra_id
      WHERE cm.fecha_esperada BETWEEN ? AND ?
@@ -204,12 +205,10 @@ export async function obtenerCuotasPendientesMes(
   );
 }
 
-export async function marcarCuotaPagada(cuotaId: string): Promise<void> {
+export async function marcarCuotaPagada(cuotaId: string, cuentaLiquidezId?: string): Promise<void> {
   const db = await getDatabase();
   await db.runAsync(
-    `UPDATE cuota_mensual
-     SET estado = 'pagada', fecha_pagada = ?
-     WHERE id = ?`,
+    `UPDATE cuota_mensual SET estado = 'pagada', fecha_pagada = ? WHERE id = ?`,
     [hoy(), cuotaId]
   );
 
@@ -219,9 +218,26 @@ export async function marcarCuotaPagada(cuotaId: string): Promise<void> {
   );
 
   if (cuota) {
+    // For crédito directo compras (no tarjeta), create a gasto movement from the account
+    if (cuentaLiquidezId) {
+      const compra = await db.getFirstAsync<{ tarjeta_version_id: string | null; descripcion: string; numero_cuota?: number }>(
+        'SELECT tarjeta_version_id, descripcion FROM compra WHERE id = ?',
+        [cuota.compra_id]
+      );
+      if (compra && !compra.tarjeta_version_id) {
+        await crearMovimiento({
+          tipo: 'gasto',
+          monto: cuota.monto_cuota,
+          fecha: hoy(),
+          descripcion: `${compra.descripcion} (cuota ${cuota.numero_cuota})`,
+          categoria: 'MSI',
+          cuenta_id: cuentaLiquidezId,
+        });
+      }
+    }
+
     const pendientes = await db.getFirstAsync<{ total: number }>(
-      `SELECT COUNT(*) as total FROM cuota_mensual
-       WHERE compra_id = ? AND estado = 'pendiente'`,
+      `SELECT COUNT(*) as total FROM cuota_mensual WHERE compra_id = ? AND estado = 'pendiente'`,
       [cuota.compra_id]
     );
 
@@ -236,6 +252,13 @@ export async function marcarCuotaPagada(cuotaId: string): Promise<void> {
 
 export async function eliminarCompra(id: string): Promise<void> {
   const db = await getDatabase();
+  const compra = await db.getFirstAsync<{ tarjeta_version_id: string | null; monto_total: number; fecha_compra: string }>(
+    'SELECT tarjeta_version_id, monto_total, fecha_compra FROM compra WHERE id = ?',
+    [id]
+  );
+  if (compra?.tarjeta_version_id) {
+    await revertirSaldoPeriodo(compra.tarjeta_version_id, compra.monto_total, compra.fecha_compra);
+  }
   await db.runAsync('DELETE FROM cuota_mensual WHERE compra_id = ?', [id]);
   await db.runAsync('DELETE FROM compra WHERE id = ?', [id]);
 }
@@ -264,9 +287,32 @@ async function actualizarSaldoPeriodo(
 
   if (periodo) {
     await db.runAsync(
-      `UPDATE periodo_corte
-       SET saldo_calculado = saldo_calculado + ?
-       WHERE id = ?`,
+      `UPDATE periodo_corte SET saldo_calculado = saldo_calculado + ? WHERE id = ?`,
+      [monto, periodo.id]
+    );
+  }
+}
+
+async function revertirSaldoPeriodo(
+  tarjetaVersionId: string,
+  monto: number,
+  fechaGasto: string
+): Promise<void> {
+  const db = await getDatabase();
+
+  const periodo = await db.getFirstAsync<{ id: string }>(
+    `SELECT pc.id FROM periodo_corte pc
+     JOIN tarjeta_version tv ON tv.tarjeta_id = pc.tarjeta_id
+     WHERE tv.id = ?
+     AND pc.fecha_corte >= ?
+     ORDER BY pc.fecha_corte ASC
+     LIMIT 1`,
+    [tarjetaVersionId, fechaGasto]
+  );
+
+  if (periodo) {
+    await db.runAsync(
+      `UPDATE periodo_corte SET saldo_calculado = MAX(0, saldo_calculado - ?) WHERE id = ?`,
       [monto, periodo.id]
     );
   }

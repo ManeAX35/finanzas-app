@@ -146,8 +146,9 @@ export default function CuentasScreen() {
   };
 
   const guardarMovimiento = async () => {
-    if (!formMov.monto || !cuentaSeleccionada) {
-      Alert.alert('Campo requerido', 'El monto es obligatorio.');
+    const monto = parseFloat(formMov.monto);
+    if (!cuentaSeleccionada || !formMov.monto || isNaN(monto) || monto <= 0) {
+      Alert.alert('Monto inválido', 'El monto debe ser mayor a 0.');
       return;
     }
     if (formMov.tipo === 'transferencia' && !formMov.cuenta_destino_id) {
@@ -179,8 +180,9 @@ export default function CuentasScreen() {
   };
 
   const guardarTransferenciaInversion = async () => {
-    if (!formInversion.monto || !formInversion.inversion_id || !cuentaSeleccionada) {
-      Alert.alert('Campos requeridos', 'Monto e inversión son obligatorios.');
+    const monto = parseFloat(formInversion.monto);
+    if (!formInversion.inversion_id || !cuentaSeleccionada || !formInversion.monto || isNaN(monto) || monto <= 0) {
+      Alert.alert('Campos requeridos', 'Monto válido e inversión son obligatorios.');
       return;
     }
     try {
@@ -378,7 +380,7 @@ export default function CuentasScreen() {
           <ScrollView style={styles.modalBody}>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Monto ($)</Text>
-              <TextInput style={styles.input} placeholder="0.00" placeholderTextColor={theme.textSecondary} keyboardType="decimal-pad" value={formMov.monto} onChangeText={v => setFormMov(p => ({ ...p, monto: v }))} />
+              <TextInput style={styles.input} placeholder="0.00" placeholderTextColor={theme.textSecondary} keyboardType="decimal-pad" value={formMov.monto} onChangeText={v => setFormMov(p => ({ ...p, monto: v.replace(/[^0-9.]/g, '') }))} />
             </View>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Descripción (opcional)</Text>
@@ -437,7 +439,7 @@ export default function CuentasScreen() {
                 placeholderTextColor={theme.textSecondary}
                 keyboardType="decimal-pad"
                 value={formInversion.monto}
-                onChangeText={v => setFormInversion(p => ({ ...p, monto: v }))}
+                onChangeText={v => setFormInversion(p => ({ ...p, monto: v.replace(/[^0-9.]/g, '') }))}
               />
             </View>
             <View style={styles.formGroup}>

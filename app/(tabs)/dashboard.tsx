@@ -75,6 +75,7 @@ export default function DashboardScreen() {
 
         if (i === 0) {
           for (const g of gastos) {
+            if (g.categoria === 'Pago tarjeta') continue;
             const cat = g.categoria ?? 'Otro';
             categoriasMap[cat] = (categoriasMap[cat] ?? 0) + g.monto;
           }

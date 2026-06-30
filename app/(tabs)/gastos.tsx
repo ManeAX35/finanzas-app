@@ -54,6 +54,9 @@ export default function GastosScreen() {
     tarjeta_version_id: '', origen: 'tarjeta', notas: '',
   });
 
+  const [pagarCuotaInfo, setPagarCuotaInfo] = useState<{ id: string; monto: number; descripcion: string } | null>(null);
+  const [pagarCuotaCuentaId, setPagarCuotaCuentaId] = useState('');
+
   const cargarDatos = async () => {
     try {
       const hoyDate = new Date();
@@ -110,7 +113,7 @@ export default function GastosScreen() {
           cuenta_id: formGasto.pago_cuenta_id, tipo: 'gasto', monto,
           fecha: formGasto.fecha,
           descripcion: formGasto.descripcion || 'Pago a tarjeta',
-          categoria: 'Tarjeta',
+          categoria: 'Pago tarjeta',
         });
         await abonarSaldoTarjeta(formGasto.pago_tarjeta_id, monto);
       } else if (tipoGasto === 'a_inversion') {
@@ -128,8 +131,9 @@ export default function GastosScreen() {
   };
 
   const guardarMSI = async () => {
-    if (!formMSI.descripcion || !formMSI.monto_total) {
-      Alert.alert('Campos requeridos', 'Descripción y monto son obligatorios.');
+    const montoTotal = parseFloat(formMSI.monto_total);
+    if (!formMSI.descripcion || !formMSI.monto_total || isNaN(montoTotal) || montoTotal <= 0) {
+      Alert.alert('Campos requeridos', 'Descripción y monto válido son obligatorios.');
       return;
     }
     try {
@@ -294,7 +298,18 @@ export default function GastosScreen() {
                 </View>
                 <View style={styles.cuotaRight}>
                   <Text style={styles.itemMonto}>{formatMXN(c.monto_cuota)}</Text>
-                  <TouchableOpacity style={styles.pagarBtn} onPress={async () => { await marcarCuotaPagada(c.id); cargarDatos(); }}>
+                  <TouchableOpacity
+                    style={styles.pagarBtn}
+                    onPress={async () => {
+                      if (c.compra_tarjeta_version_id) {
+                        await marcarCuotaPagada(c.id);
+                        cargarDatos();
+                      } else {
+                        setPagarCuotaInfo({ id: c.id, monto: c.monto_cuota, descripcion: c.descripcion_compra });
+                        setPagarCuotaCuentaId(cuentas[0]?.id || '');
+                      }
+                    }}
+                  >
                     <Text style={styles.pagarBtnText}>Pagar</Text>
                   </TouchableOpacity>
                 </View>
@@ -341,7 +356,7 @@ export default function GastosScreen() {
             </View>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Monto ($)</Text>
-              <TextInput style={styles.input} placeholder="0.00" placeholderTextColor={theme.textSecondary} keyboardType="decimal-pad" value={formGasto.monto} onChangeText={v => setFormGasto(p => ({ ...p, monto: v }))} />
+              <TextInput style={styles.input} placeholder="0.00" placeholderTextColor={theme.textSecondary} keyboardType="decimal-pad" value={formGasto.monto} onChangeText={v => setFormGasto(p => ({ ...p, monto: v.replace(/[^0-9.]/g, '') }))} />
             </View>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Fecha</Text>
@@ -466,7 +481,7 @@ export default function GastosScreen() {
             </View>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Monto ($)</Text>
-              <TextInput style={styles.input} placeholder="0.00" placeholderTextColor={theme.textSecondary} keyboardType="decimal-pad" value={formEditar.monto} onChangeText={v => setFormEditar(p => ({ ...p, monto: v }))} />
+              <TextInput style={styles.input} placeholder="0.00" placeholderTextColor={theme.textSecondary} keyboardType="decimal-pad" value={formEditar.monto} onChangeText={v => setFormEditar(p => ({ ...p, monto: v.replace(/[^0-9.]/g, '') }))} />
             </View>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Fecha</Text>
@@ -490,6 +505,51 @@ export default function GastosScreen() {
         </View>
       </Modal>
 
+      {/* Modal pagar cuota crédito directo */}
+      <Modal visible={!!pagarCuotaInfo} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setPagarCuotaInfo(null)}>
+        <View style={styles.modal}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Pagar cuota</Text>
+            <TouchableOpacity onPress={() => setPagarCuotaInfo(null)}>
+              <Ionicons name="close" size={24} color={theme.textSecondary} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={styles.modalBody}>
+            {pagarCuotaInfo && (
+              <Text style={[styles.itemTitle, { marginBottom: 16 }]}>
+                {pagarCuotaInfo.descripcion} · {formatMXN(pagarCuotaInfo.monto)}
+              </Text>
+            )}
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Descontar de cuenta</Text>
+              {cuentas.length === 0 ? (
+                <Text style={styles.emptyText}>Agrega una cuenta primero</Text>
+              ) : cuentas.map(c => (
+                <TouchableOpacity
+                  key={c.id}
+                  style={[styles.selectorItem, pagarCuotaCuentaId === c.id && styles.selectorItemActive]}
+                  onPress={() => setPagarCuotaCuentaId(c.id)}
+                >
+                  <Text style={styles.selectorText}>{c.nombre}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TouchableOpacity
+              style={[styles.saveBtn, { backgroundColor: theme.success }, !pagarCuotaCuentaId && { opacity: 0.4 }]}
+              onPress={async () => {
+                if (!pagarCuotaInfo || !pagarCuotaCuentaId) return;
+                await marcarCuotaPagada(pagarCuotaInfo.id, pagarCuotaCuentaId);
+                setPagarCuotaInfo(null);
+                cargarDatos();
+              }}
+            >
+              <Text style={styles.saveBtnText}>Confirmar pago</Text>
+            </TouchableOpacity>
+            <View style={{ height: 40 }} />
+          </ScrollView>
+        </View>
+      </Modal>
+
       {/* Modal MSI */}
       <Modal visible={modalMSI} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setModalMSI(false)}>
         <View style={styles.modal}>
@@ -506,7 +566,7 @@ export default function GastosScreen() {
             </View>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Monto total ($)</Text>
-              <TextInput style={styles.input} placeholder="0.00" placeholderTextColor={theme.textSecondary} keyboardType="decimal-pad" value={formMSI.monto_total} onChangeText={v => setFormMSI(p => ({ ...p, monto_total: v }))} />
+              <TextInput style={styles.input} placeholder="0.00" placeholderTextColor={theme.textSecondary} keyboardType="decimal-pad" value={formMSI.monto_total} onChangeText={v => setFormMSI(p => ({ ...p, monto_total: v.replace(/[^0-9.]/g, '') }))} />
             </View>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Meses sin intereses</Text>

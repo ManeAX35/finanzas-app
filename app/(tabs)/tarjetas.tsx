@@ -152,6 +152,11 @@ export default function TarjetasScreen() {
       Alert.alert('Campos requeridos', 'Banco, nombre y día de corte son obligatorios.');
       return;
     }
+    const limite = parseFloat(form.limite_credito);
+    if (form.limite_credito && (isNaN(limite) || limite <= 0)) {
+      Alert.alert('Monto inválido', 'El límite de crédito debe ser mayor a 0.');
+      return;
+    }
     try {
       const datos = {
         banco: form.banco, nombre: form.nombre, digitos: form.digitos,
@@ -362,7 +367,10 @@ export default function TarjetasScreen() {
                   placeholder={f.placeholder}
                   placeholderTextColor={theme.textSecondary}
                   value={form[f.key as keyof typeof form]}
-                  onChangeText={v => setForm(p => ({ ...p, [f.key]: v }))}
+                  onChangeText={v => {
+                    const filtered = f.keyboardType === 'decimal-pad' ? v.replace(/[^0-9.]/g, '') : f.keyboardType ? v.replace(/[^0-9]/g, '') : v;
+                    setForm(p => ({ ...p, [f.key]: filtered }));
+                  }}
                   keyboardType={f.keyboardType}
                   maxLength={f.maxLength}
                 />
@@ -404,7 +412,7 @@ export default function TarjetasScreen() {
                 placeholder={pagoModal ? String(pagoModal.saldo) : '0'}
                 placeholderTextColor={theme.textSecondary}
                 value={pagoMonto}
-                onChangeText={setPagoMonto}
+                onChangeText={v => setPagoMonto(v.replace(/[^0-9.]/g, ''))}
                 keyboardType="decimal-pad"
               />
             </View>

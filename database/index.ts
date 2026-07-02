@@ -17,6 +17,13 @@ export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
       console.error('[DB] initDatabase falló:', e);
     }
     db = database;
+    // Run after db is set so getDatabase() calls inside don't deadlock
+    try {
+      const { acumularRendimientosPendientes } = await import('./queries/inversiones');
+      await acumularRendimientosPendientes();
+    } catch (e) {
+      console.error('[DB] acumularRendimientosPendientes falló:', e);
+    }
     return database;
   });
   return dbPromise;

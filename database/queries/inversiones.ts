@@ -312,3 +312,152 @@ export async function transferirInversionACuenta(
     categoria: 'Transferencia',
   });
 }
+
+// ─────────────────────────────────────────
+// ACUMULACIÓN AUTOMÁTICA DE RENDIMIENTOS
+// ─────────────────────────────────────────
+
+async function obtenerSaldoHasta(cuentaId: string, fechaCorte: string): Promise<number> {
+  const db = await getDatabase();
+  const result = await db.getFirstAsync<{ saldo: number }>(
+    `SELECT COALESCE(SUM(
+       CASE
+         WHEN mi.tipo = 'deposito' THEN mi.monto
+         WHEN mi.tipo = 'retiro' THEN -mi.monto
+         WHEN mi.tipo = 'rendimiento' THEN mi.monto
+         ELSE 0
+       END
+     ), 0) as saldo
+     FROM movimiento_inversion mi
+     JOIN cuenta_inversion_version civ ON civ.id = mi.cuenta_version_id
+     WHERE civ.cuenta_id = ? AND mi.fecha <= ?`,
+    [cuentaId, fechaCorte]
+  );
+  return result?.saldo ?? 0;
+}
+
+export async function acumularRendimientosPendientes(): Promise<void> {
+  try {
+    const db = await getDatabase();
+    const cuentas = await obtenerCuentasInversion();
+    const hoyStr = hoy();
+    const hoyDate = new Date(hoyStr);
+
+    for (const cuenta of cuentas) {
+      const c = cuenta as any;
+      const frecuencia: string = c.frecuencia_rendimiento ?? '';
+      if (frecuencia === 'al_vencimiento' || !frecuencia) continue;
+
+      const versionId: string = c.version_id;
+      const tasaAnual: number = Number(c.tasa_anual) || 0;
+      if (tasaAnual <= 0 || !versionId) continue;
+
+      const ultimoMov = await db.getFirstAsync<{ fecha: string }>(
+        `SELECT fecha FROM movimiento_inversion
+         WHERE tipo = 'rendimiento'
+         AND cuenta_version_id IN (
+           SELECT id FROM cuenta_inversion_version WHERE cuenta_id = ?
+         )
+         ORDER BY fecha DESC LIMIT 1`,
+        [cuenta.id]
+      );
+
+      const fechaDesde = ultimoMov
+        ? new Date(ultimoMov.fecha)
+        : new Date(c.fecha_inicio ?? hoyStr);
+
+      if (frecuencia === 'diario') {
+        const cursor = new Date(fechaDesde);
+        cursor.setDate(cursor.getDate() + 1);
+
+        while (cursor <= hoyDate) {
+          const fechaStr = cursor.toISOString().slice(0, 10);
+
+          const yaExiste = await db.getFirstAsync<{ id: string }>(
+            `SELECT id FROM movimiento_inversion
+             WHERE tipo = 'rendimiento' AND fecha = ?
+             AND cuenta_version_id IN (SELECT id FROM cuenta_inversion_version WHERE cuenta_id = ?)`,
+            [fechaStr, cuenta.id]
+          );
+
+          if (!yaExiste) {
+            const saldoBase = await obtenerSaldoHasta(cuenta.id, fechaStr);
+            const rendimiento = saldoBase * (tasaAnual / 100 / 365);
+            if (rendimiento > 0.001) {
+              await db.runAsync(
+                `INSERT INTO movimiento_inversion (id, cuenta_version_id, tipo, monto, fecha, saldo_resultante, notas)
+                 VALUES (?, ?, 'rendimiento', ?, ?, ?, 'Rendimiento diario')`,
+                [uid(), versionId, rendimiento, fechaStr, saldoBase + rendimiento]
+              );
+            }
+          }
+
+          cursor.setDate(cursor.getDate() + 1);
+        }
+
+      } else if (frecuencia === 'mensual') {
+        // Cap day at 28 to avoid Feb-overflow (29-31 edge cases)
+        const diaTarget = Math.min(new Date(c.fecha_inicio).getDate(), 28);
+        const cursor = new Date(fechaDesde.getFullYear(), fechaDesde.getMonth(), diaTarget);
+        if (cursor <= fechaDesde) cursor.setMonth(cursor.getMonth() + 1);
+
+        while (cursor <= hoyDate) {
+          const fechaStr = cursor.toISOString().slice(0, 10);
+
+          const yaExiste = await db.getFirstAsync<{ id: string }>(
+            `SELECT id FROM movimiento_inversion
+             WHERE tipo = 'rendimiento' AND fecha = ?
+             AND cuenta_version_id IN (SELECT id FROM cuenta_inversion_version WHERE cuenta_id = ?)`,
+            [fechaStr, cuenta.id]
+          );
+
+          if (!yaExiste) {
+            const saldoBase = await obtenerSaldoHasta(cuenta.id, fechaStr);
+            const rendimiento = saldoBase * (tasaAnual / 100 / 12);
+            if (rendimiento > 0.01) {
+              await db.runAsync(
+                `INSERT INTO movimiento_inversion (id, cuenta_version_id, tipo, monto, fecha, saldo_resultante, notas)
+                 VALUES (?, ?, 'rendimiento', ?, ?, ?, 'Rendimiento mensual')`,
+                [uid(), versionId, rendimiento, fechaStr, saldoBase + rendimiento]
+              );
+            }
+          }
+
+          cursor.setMonth(cursor.getMonth() + 1);
+        }
+
+      } else if (frecuencia === 'trimestral') {
+        const diaTarget = Math.min(new Date(c.fecha_inicio).getDate(), 28);
+        const cursor = new Date(fechaDesde.getFullYear(), fechaDesde.getMonth(), diaTarget);
+        if (cursor <= fechaDesde) cursor.setMonth(cursor.getMonth() + 3);
+
+        while (cursor <= hoyDate) {
+          const fechaStr = cursor.toISOString().slice(0, 10);
+
+          const yaExiste = await db.getFirstAsync<{ id: string }>(
+            `SELECT id FROM movimiento_inversion
+             WHERE tipo = 'rendimiento' AND fecha = ?
+             AND cuenta_version_id IN (SELECT id FROM cuenta_inversion_version WHERE cuenta_id = ?)`,
+            [fechaStr, cuenta.id]
+          );
+
+          if (!yaExiste) {
+            const saldoBase = await obtenerSaldoHasta(cuenta.id, fechaStr);
+            const rendimiento = saldoBase * (tasaAnual / 100 / 4);
+            if (rendimiento > 0.01) {
+              await db.runAsync(
+                `INSERT INTO movimiento_inversion (id, cuenta_version_id, tipo, monto, fecha, saldo_resultante, notas)
+                 VALUES (?, ?, 'rendimiento', ?, ?, ?, 'Rendimiento trimestral')`,
+                [uid(), versionId, rendimiento, fechaStr, saldoBase + rendimiento]
+              );
+            }
+          }
+
+          cursor.setMonth(cursor.getMonth() + 3);
+        }
+      }
+    }
+  } catch (e) {
+    console.error('[acumularRendimientosPendientes]', e);
+  }
+}

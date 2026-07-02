@@ -12,7 +12,7 @@ import {
   calcularRendimientoHoy, registrarMovimientoInversion,
   eliminarCuentaInversion, eliminarMovimientoInversion, actualizarTasaInversion,
   obtenerMovimientosInversion, transferirCuentaAInversion,
-  transferirInversionACuenta
+  transferirInversionACuenta, acumularRendimientosPendientes
 } from '../../database/queries/inversiones';
 import { obtenerCuentasLiquidez } from '../../database/queries/liquidez';
 import { formatMXN, hoy } from '../../database';
@@ -52,6 +52,7 @@ export default function InversionesScreen() {
 
   const cargarDatos = async () => {
     try {
+      await acumularRendimientosPendientes();
       const [lista, liquidez] = await Promise.all([
         obtenerCuentasInversion(),
         obtenerCuentasLiquidez(),

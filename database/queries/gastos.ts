@@ -35,6 +35,7 @@ export async function obtenerGastos(
   return await db.getAllAsync<Gasto>(
     `SELECT *, cuenta_id as cuenta_liquidez_id FROM movimiento
      WHERE tipo = 'gasto' AND compra_id IS NULL AND recurrente_id IS NULL
+     AND (categoria IS NULL OR categoria != 'Transferencia')
      ORDER BY fecha DESC, created_at DESC
      LIMIT ? OFFSET ?`,
     [limite, offset]
@@ -77,6 +78,7 @@ export async function obtenerGastosPorMes(
     `SELECT *, cuenta_id as cuenta_liquidez_id FROM movimiento
      WHERE tipo = 'gasto' AND fecha BETWEEN ? AND ?
      AND compra_id IS NULL AND recurrente_id IS NULL
+     AND (categoria IS NULL OR categoria != 'Transferencia')
      ORDER BY fecha DESC`,
     [fechaInicio, fechaFin]
   );

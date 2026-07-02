@@ -70,12 +70,12 @@ export default function DashboardScreen() {
         const totalRec = recurrentes.reduce((s: number, r: any) => s + (r.monto_cobrado ?? r.monto_esperado ?? 0), 0);
         gastosArr.push({ mes, anio, total: totalGastos + totalRec });
 
-        const totalIngresos = movimientos.filter(m => m.tipo === 'ingreso').reduce((s, m) => s + m.monto, 0);
+        const totalIngresos = movimientos.filter(m => m.tipo === 'ingreso' && m.categoria !== 'Transferencia').reduce((s, m) => s + m.monto, 0);
         ingresosArr.push({ mes, anio, total: totalIngresos });
 
         if (i === 0) {
           for (const g of gastos) {
-            if (g.categoria === 'Pago tarjeta') continue;
+            if (g.categoria === 'Pago tarjeta' || g.categoria === 'Transferencia') continue;
             const cat = g.categoria ?? 'Otro';
             categoriasMap[cat] = (categoriasMap[cat] ?? 0) + g.monto;
           }

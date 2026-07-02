@@ -455,6 +455,39 @@ export async function acumularRendimientosPendientes(): Promise<void> {
 
           cursor.setMonth(cursor.getMonth() + 3);
         }
+
+      } else if (frecuencia === 'anual') {
+        const diaAcreditacion = new Date(c.fecha_inicio).getDate();
+        const mesAcreditacion = new Date(c.fecha_inicio).getMonth();
+        const cursor = new Date(fechaDesde);
+        cursor.setDate(diaAcreditacion);
+        cursor.setMonth(mesAcreditacion);
+        cursor.setFullYear(cursor.getFullYear() + 1);
+
+        while (cursor <= hoyDate) {
+          const fechaStr = cursor.toISOString().slice(0, 10);
+
+          const yaExiste = await db.getFirstAsync<{ id: string }>(
+            `SELECT id FROM movimiento_inversion
+             WHERE tipo = 'rendimiento' AND fecha = ?
+             AND cuenta_version_id IN (SELECT id FROM cuenta_inversion_version WHERE cuenta_id = ?)`,
+            [fechaStr, cuenta.id]
+          );
+
+          if (!yaExiste) {
+            const saldoBase = await obtenerSaldoHasta(cuenta.id, fechaStr);
+            const rendimiento = saldoBase * (tasaAnual / 100);
+            if (rendimiento > 0.01) {
+              await db.runAsync(
+                `INSERT INTO movimiento_inversion (id, cuenta_version_id, tipo, monto, fecha, saldo_resultante, notas)
+                 VALUES (?, ?, 'rendimiento', ?, ?, ?, 'Rendimiento anual')`,
+                [uid(), versionId, rendimiento, fechaStr, saldoBase + rendimiento]
+              );
+            }
+          }
+
+          cursor.setFullYear(cursor.getFullYear() + 1);
+        }
       }
     }
   } catch (e) {
